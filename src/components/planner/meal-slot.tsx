@@ -106,7 +106,7 @@ export function MealSlot({
         </div>
       ) : hasNotes ? (
         <div className="h-full flex flex-col">
-          <p className="text-sm text-muted-foreground italic line-clamp-3">
+          <p className="text-sm font-medium line-clamp-3">
             {plan!.notes}
           </p>
           <div className="mt-auto flex justify-end">

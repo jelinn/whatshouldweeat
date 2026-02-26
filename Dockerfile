@@ -31,22 +31,19 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create non-root user for security
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
 # Create data directory for SQLite database
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
+# Use built-in 'node' user (uid 1000) to match typical host user ownership
+RUN mkdir -p /app/data && chown -R node:node /app/data
 
 # Set ownership
-RUN chown -R nextjs:nodejs /app
+RUN chown -R node:node /app
 
-USER nextjs
+USER node
 
 # Expose port
 EXPOSE 3000

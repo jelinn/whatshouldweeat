@@ -275,7 +275,7 @@ export default function GroceryPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between no-print">
         <div>
           <h1 className="text-3xl font-bold">Grocery List</h1>
           <p className="text-muted-foreground">
@@ -283,6 +283,11 @@ export default function GroceryPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {items.length > 0 && (
+            <Button variant="outline" onClick={() => window.print()}>
+              Print List
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setStaplesDialogOpen(true)}>
             Manage Staples
           </Button>
@@ -293,7 +298,7 @@ export default function GroceryPage() {
       </div>
 
       {/* Week Navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between no-print">
         <Button variant="outline" onClick={goToPreviousWeek}>
           ← Previous Week
         </Button>
@@ -312,7 +317,7 @@ export default function GroceryPage() {
 
       {/* Shopping Mode Toggle */}
       {items.length > 0 && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between no-print shopping-mode-controls">
           <div className="flex items-center gap-4">
             <Button
               variant={shoppingMode ? "default" : "outline"}
@@ -336,7 +341,7 @@ export default function GroceryPage() {
 
       {/* Progress Bar */}
       {shoppingMode && items.length > 0 && (
-        <div className="w-full bg-muted rounded-full h-2">
+        <div className="w-full bg-muted rounded-full h-2 no-print">
           <div
             className="bg-primary h-2 rounded-full transition-all"
             style={{ width: `${progress}%` }}
@@ -380,75 +385,93 @@ export default function GroceryPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {Object.entries(groupedItems).map(([category, categoryItems]) => (
-            <Card key={category}>
-              <CardHeader className="py-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  {CATEGORY_LABELS[category] || category}
-                  <Badge variant="secondary">{categoryItems.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="py-2">
-                <ul className="space-y-1">
-                  {categoryItems.map((item) => (
-                    <li
-                      key={item.id}
-                      className={`flex items-center gap-3 py-2 px-2 rounded-lg transition-colors ${
-                        item.isChecked
-                          ? "bg-muted/50 text-muted-foreground"
-                          : "hover:bg-muted/30"
-                      }`}
-                    >
-                      <Checkbox
-                        checked={item.isChecked}
-                        onCheckedChange={() => handleToggleItem(item)}
-                      />
-                      <span
-                        className={`flex-1 ${
-                          item.isChecked ? "line-through" : ""
-                        }`}
-                      >
-                        {item.amount && (
-                          <span className="font-medium">
-                            {item.amount}
-                            {item.unit && ` ${item.unit}`}{" "}
+        <div className="print-grocery-list">
+          {/* Print-only header */}
+          <div className="hidden print:block">
+            <div className="print-title">Grocery List</div>
+            <div className="print-subtitle">{formatDateRange(currentSunday)}</div>
+          </div>
+
+          <div className="space-y-4 print:space-y-0 print:print-columns">
+            {Object.entries(groupedItems).map(([category, categoryItems]) => (
+              <div key={category} className="print-category">
+                <Card>
+                  <CardHeader className="py-3 print:p-0">
+                    <CardTitle className="text-lg flex items-center gap-2 print:hidden">
+                      {CATEGORY_LABELS[category] || category}
+                      <Badge variant="secondary">{categoryItems.length}</Badge>
+                    </CardTitle>
+                    <div className="hidden print:block print-category-header">
+                      {CATEGORY_LABELS[category] || category}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="py-2 print:p-0">
+                    <ul className="space-y-1 print:space-y-0">
+                      {categoryItems.map((item) => (
+                        <li
+                          key={item.id}
+                          className={`flex items-center gap-3 py-2 px-2 rounded-lg transition-colors print:p-0 print:rounded-none ${
+                            item.isChecked
+                              ? "bg-muted/50 text-muted-foreground"
+                              : "hover:bg-muted/30"
+                          }`}
+                        >
+                          {/* Screen checkbox */}
+                          <span className="print:hidden">
+                            <Checkbox
+                              checked={item.isChecked}
+                              onCheckedChange={() => handleToggleItem(item)}
+                            />
                           </span>
-                        )}
-                        {item.ingredientName}
-                        {item.isStaple && (
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            staple
-                          </Badge>
-                        )}
-                      </span>
-                      {!shoppingMode && (
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50"
-                            onClick={() => handleMarkAlreadyHave(item)}
-                            title="Mark as already have"
+                          {/* Print checkbox */}
+                          <span className="hidden print:inline-block print-checkbox" />
+                          <span
+                            className={`flex-1 print:no-underline ${
+                              item.isChecked ? "line-through print:no-underline" : ""
+                            }`}
                           >
-                            Have
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDeleteItem(item.id)}
-                          >
-                            ×
-                          </Button>
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          ))}
+                            {item.amount && (
+                              <span className="font-medium">
+                                {item.amount}
+                                {item.unit && ` ${item.unit}`}{" "}
+                              </span>
+                            )}
+                            {item.ingredientName}
+                            {item.isStaple && (
+                              <Badge variant="outline" className="ml-2 text-xs print:hidden">
+                                staple
+                              </Badge>
+                            )}
+                          </span>
+                          {!shoppingMode && (
+                            <div className="flex gap-1 no-print">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50"
+                                onClick={() => handleMarkAlreadyHave(item)}
+                                title="Mark as already have"
+                              >
+                                Have
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleDeleteItem(item.id)}
+                              >
+                                ×
+                              </Button>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

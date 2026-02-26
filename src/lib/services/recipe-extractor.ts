@@ -23,18 +23,21 @@ interface ExtractedRecipe {
   sourceUrl?: string;
 }
 
-// Parse ISO 8601 duration (PT30M, PT1H30M, etc.) to minutes
+// Parse ISO 8601 duration (PT30M, PT1H30M, P0DT0H45M0S, etc.) to minutes
 function parseDuration(duration: string | undefined): number | undefined {
   if (!duration) return undefined;
 
-  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/i);
+  // Handle full ISO 8601: P[nD]T[nH][nM][nS]
+  const match = duration.match(/P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/i);
   if (!match) return undefined;
 
-  const hours = parseInt(match[1] || "0");
-  const minutes = parseInt(match[2] || "0");
-  const seconds = parseInt(match[3] || "0");
+  const days = parseInt(match[1] || "0");
+  const hours = parseInt(match[2] || "0");
+  const minutes = parseInt(match[3] || "0");
+  const seconds = parseInt(match[4] || "0");
 
-  return hours * 60 + minutes + Math.ceil(seconds / 60);
+  const total = days * 24 * 60 + hours * 60 + minutes + Math.ceil(seconds / 60);
+  return total > 0 ? total : undefined;
 }
 
 // Parse yield/servings from various formats
@@ -54,9 +57,12 @@ export function parseIngredient(text: string): {
   unit?: string;
   notes?: string;
 } {
-  // Common units pattern
+  // Common units pattern - single-letter units (g, l) require a word boundary after them
+  // to avoid eating the start of words like "garlic" or "large"
   const units =
-    /^(cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|g|grams?|kg|kilograms?|ml|milliliters?|l|liters?|pieces?|slices?|cloves?|heads?|bunche?s?|cans?|packages?|pinche?s?|dashes?|sticks?)/i;
+    /^(cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|grams?|kg|kilograms?|ml|milliliters?|liters?|pieces?|slices?|cloves?|heads?|bunche?s?|cans?|packages?|pinche?s?|dashes?|sticks?)(?:\s|$)/i;
+  // Single-letter units only match when followed by space/end (e.g., "300 g flour" but not "3 garlic")
+  const singleLetterUnits = /^(g|l)(?:\s|$)/i;
 
   // Clean the text
   let cleaned = text.trim();
@@ -80,9 +86,9 @@ export function parseIngredient(text: string): {
   }
 
   // Try to extract amount and unit
-  // Patterns: "2 cups flour", "1/2 tsp salt", "2-3 tablespoons oil"
+  // Patterns: "2 cups flour", "1/2 tsp salt", "2-3 tablespoons oil", "2 1/2 cups flour"
   const amountMatch = cleaned.match(
-    /^([\d./\-–]+(?:\s*[-–]\s*[\d./]+)?)\s*/
+    /^([\d]+\s+[\d]+\/[\d]+|[\d./\-–]+(?:\s*[-–]\s*[\d./]+)?)\s*/
   );
 
   let amount: number | undefined;
@@ -92,8 +98,12 @@ export function parseIngredient(text: string): {
   if (amountMatch) {
     const amountStr = amountMatch[1].replace(/[-–]/g, "-");
 
-    // Handle fractions like 1/2
-    if (amountStr.includes("/")) {
+    // Handle mixed fractions like "2 1/2"
+    const mixedMatch = amountStr.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+    if (mixedMatch) {
+      amount = parseInt(mixedMatch[1]) + parseInt(mixedMatch[2]) / parseInt(mixedMatch[3]);
+    } else if (amountStr.includes("/")) {
+      // Simple fractions like "1/2"
       const [num, denom] = amountStr.split("/").map(Number);
       amount = num / denom;
     } else if (amountStr.includes("-")) {
@@ -107,8 +117,8 @@ export function parseIngredient(text: string): {
     // Remove amount from string
     name = cleaned.slice(amountMatch[0].length).trim();
 
-    // Try to extract unit
-    const unitMatch = name.match(units);
+    // Try to extract unit - check multi-char units first, then single-letter
+    const unitMatch = name.match(units) || name.match(singleLetterUnits);
     if (unitMatch) {
       unit = unitMatch[1].toLowerCase();
       name = name.slice(unitMatch[0].length).trim();
@@ -205,10 +215,129 @@ function extractFromJsonLd(jsonLd: unknown): ExtractedRecipe | null {
   };
 }
 
+// Extract recipe from microdata (itemprop attributes, used by Jetpack Recipe, etc.)
+function extractFromMicrodata($: cheerio.CheerioAPI): ExtractedRecipe | null {
+  // Find the Recipe schema container
+  const recipeEl = $('[itemtype*="schema.org/Recipe"]');
+  if (recipeEl.length === 0) return null;
+
+  // Title
+  const title = recipeEl.find('[itemprop="name"]').first().text().trim();
+  if (!title) return null;
+
+  // Description
+  const description = recipeEl.find('[itemprop="description"]').first().text().trim() || undefined;
+
+  // Servings
+  const servingsText = recipeEl.find('[itemprop="recipeYield"]').first().text().trim();
+  const servings = parseServings(servingsText);
+
+  // Times - check datetime attributes first, then text content
+  const prepTimeEl = recipeEl.find('[itemprop="prepTime"]').first();
+  const cookTimeEl = recipeEl.find('[itemprop="cookTime"]').first();
+  const totalTimeEl = recipeEl.find('[itemprop="totalTime"]').first();
+
+  const prepTimeMinutes = parseDuration(prepTimeEl.attr('datetime')) || parseDuration(prepTimeEl.text());
+  const cookTimeMinutes = parseDuration(cookTimeEl.attr('datetime')) || parseDuration(cookTimeEl.text());
+  const totalTimeMinutes = parseDuration(totalTimeEl.attr('datetime')) || parseDuration(totalTimeEl.text());
+
+  // Image
+  let imageUrl: string | undefined;
+  const imgEl = recipeEl.find('[itemprop="image"]').first();
+  if (imgEl.length > 0) {
+    imageUrl = imgEl.attr('src') || imgEl.attr('content') || undefined;
+  }
+
+  // Ingredients
+  const ingredientEls = recipeEl.find('[itemprop="recipeIngredient"], [itemprop="ingredients"]');
+  const ingredients = ingredientEls
+    .map((_, el) => {
+      const text = $(el).text().trim();
+      return text ? parseIngredient(text) : null;
+    })
+    .get()
+    .filter(Boolean) as ReturnType<typeof parseIngredient>[];
+
+  // Instructions - try itemprop first, then common class-based containers
+  let instructions: { stepNumber: number; instruction: string }[] = [];
+
+  const instructionEls = recipeEl.find('[itemprop="recipeInstructions"]');
+  if (instructionEls.length > 0) {
+    // Check if it's a container with step children or individual elements
+    if (instructionEls.length === 1) {
+      const container = instructionEls.first();
+      const stepEls = container.find('[itemprop="step"], [itemprop="itemListElement"], li, p');
+      if (stepEls.length > 0) {
+        instructions = stepEls
+          .map((i, el) => {
+            const text = $(el).find('[itemprop="text"]').text().trim() || $(el).text().trim();
+            return text ? { stepNumber: i + 1, instruction: text } : null;
+          })
+          .get()
+          .filter(Boolean) as { stepNumber: number; instruction: string }[];
+      } else {
+        // Single block of text - split by paragraphs or sentences
+        const text = container.text().trim();
+        if (text) {
+          instructions = text
+            .split(/\n\n|\n/)
+            .map((s) => s.trim())
+            .filter((s) => s.length > 10)
+            .map((s, i) => ({ stepNumber: i + 1, instruction: s }));
+        }
+      }
+    } else {
+      // Multiple elements with itemprop="recipeInstructions"
+      instructions = instructionEls
+        .map((i, el) => {
+          const text = $(el).text().trim();
+          return text ? { stepNumber: i + 1, instruction: text } : null;
+        })
+        .get()
+        .filter(Boolean) as { stepNumber: number; instruction: string }[];
+    }
+  }
+
+  // Fallback: look for common recipe directions containers (Jetpack, WPRM, etc.)
+  if (instructions.length === 0) {
+    const directionsContainer = recipeEl.find(
+      '.jetpack-recipe-directions, .wprm-recipe-instructions, .recipe-directions, .instructions'
+    ).first();
+
+    if (directionsContainer.length > 0) {
+      const paragraphs = directionsContainer.find('p, li');
+      if (paragraphs.length > 0) {
+        instructions = paragraphs
+          .map((i, el) => {
+            const text = $(el).text().trim();
+            return text && text.length > 5 ? { stepNumber: i + 1, instruction: text } : null;
+          })
+          .get()
+          .filter(Boolean) as { stepNumber: number; instruction: string }[];
+      }
+    }
+  }
+
+  // Only return if we found meaningful content
+  if (ingredients.length === 0 && instructions.length === 0) return null;
+
+  return {
+    title,
+    description,
+    imageUrl,
+    prepTimeMinutes,
+    cookTimeMinutes,
+    totalTimeMinutes,
+    servings,
+    ingredients,
+    instructions,
+  };
+}
+
 // Fetch and parse a recipe URL
 export async function fetchAndExtractRecipe(
   url: string
-): Promise<{ recipe: ExtractedRecipe | null; html: string; error?: string }> {
+): Promise<{ recipe: ExtractedRecipe | null; html: string; source?: "json-ld" | "microdata"; error?: string }> {
   try {
     // Fetch the page
     const response = await fetch(url, {
@@ -248,7 +377,7 @@ export async function fetchAndExtractRecipe(
               // Add source info
               recipe.sourceUrl = url;
               recipe.sourceName = extractSiteName($, url);
-              return { recipe, html };
+              return { recipe, html, source: "json-ld" as const };
             }
           }
         } else {
@@ -256,13 +385,21 @@ export async function fetchAndExtractRecipe(
           if (recipe) {
             recipe.sourceUrl = url;
             recipe.sourceName = extractSiteName($, url);
-            return { recipe, html };
+            return { recipe, html, source: "json-ld" as const };
           }
         }
       } catch {
         // JSON parse error, continue to next script
         continue;
       }
+    }
+
+    // Try microdata extraction (itemprop attributes)
+    const microdataRecipe = extractFromMicrodata($);
+    if (microdataRecipe) {
+      microdataRecipe.sourceUrl = url;
+      microdataRecipe.sourceName = extractSiteName($, url);
+      return { recipe: microdataRecipe, html, source: "microdata" as const };
     }
 
     // No structured data found

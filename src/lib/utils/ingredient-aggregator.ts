@@ -53,12 +53,43 @@ const PREFERRED_UNITS: Record<string, { threshold: number; unit: string; factor:
     { threshold: 0, unit: "ml", factor: 1 },
   ],
   g: [
-    { threshold: 1000, unit: "kg", factor: 1000 },
     { threshold: 453, unit: "lbs", factor: 453.6 },
     { threshold: 28, unit: "oz", factor: 28.35 },
     { threshold: 0, unit: "g", factor: 1 },
   ],
 };
+
+// Auto-categorize ingredients by name when no category is provided
+const CATEGORY_PATTERNS: [RegExp, string][] = [
+  // Produce
+  [/\b(lettuce|spinach|kale|arugula|greens|tomato|onion|garlic|pepper|jalape[nñ]o|potato|carrot|celery|broccoli|cauliflower|cucumber|zucchini|squash|mushroom|avocado|corn|bean sprout|ginger|scallion|shallot|leek|cilantro|parsley|basil|mint|dill|rosemary|thyme|chive|lemon|lime|orange|apple|banana|berr|raspberr|blueberr|strawberr|grape|mango|peach|pear|melon|cabbage|radish|beet|turnip|eggplant|artichoke|asparagus|pea[^n]|snap pea|green bean)\b/i, "produce"],
+  // Dairy
+  [/\b(milk|cream|butter|cheese|yogurt|sour cream|cream cheese|egg|cheddar|mozzarella|parmesan|ricotta|provolone|gouda|brie|feta|goat cheese|half-and-half|whipping cream|buttermilk)\b/i, "dairy"],
+  // Meat
+  [/\b(beef|chicken|pork|turkey|lamb|sausage|bacon|ham|steak|roast|ground meat|ground beef|ground turkey|ground pork|ground lamb|chuck|sirloin|tenderloin|brisket|ribs|thigh|breast|drumstick|wing|chop|loin|prosciutto|pancetta|salami|pepperoni|meatball)\b/i, "meat"],
+  // Seafood
+  [/\b(salmon|tuna|shrimp|prawn|cod|tilapia|halibut|trout|crab|lobster|scallop|mussel|clam|oyster|anchov|sardine|squid|octopus|fish|seafood)\b/i, "seafood"],
+  // Bakery
+  [/\b(bread|roll|bun|tortilla|pita|naan|bagel|croissant|baguette|ciabatta|sourdough|flatbread|wrap|english muffin|hamburger bun|hot dog bun|crouton)\b/i, "bakery"],
+  // Frozen
+  [/\b(frozen|ice cream)\b/i, "frozen"],
+  // Spices
+  [/\b(salt|pepper|cumin|paprika|oregano|cinnamon|nutmeg|cayenne|chili powder|curry|turmeric|coriander|cardamom|clove|allspice|bay lea|fennel seed|mustard seed|red pepper flake|italian seasoning|garlic powder|onion powder|smoked paprika|za'atar|sumac|saffron|vanilla)\b/i, "spices"],
+  // Condiments
+  [/\b(ketchup|mustard|mayo|mayonnaise|hot sauce|soy sauce|worcestershire|vinegar|sriracha|salsa|barbecue|teriyaki|tahini|hoisin|fish sauce|oyster sauce|sambal|harissa|chile crisp|gochujang|miso|ranch|dressing|relish|aioli|pesto|marinara|tomato paste|tomato sauce)\b/i, "condiments"],
+  // Pantry
+  [/\b(flour|sugar|rice|pasta|noodle|oil|olive oil|vegetable oil|canola|coconut oil|sesame oil|broth|stock|canned|beans|lentil|chickpea|oat|cereal|granola|nut|almond|walnut|pecan|cashew|peanut|pistachio|seed|honey|maple syrup|molasses|cocoa|chocolate|baking powder|baking soda|yeast|cornstarch|breadcrumb|panko|spaghetti|penne|macaroni|fettuccine|ramen|couscous|quinoa|barley|bulgur|polenta|grits|tortilla chip|cracker|chip)\b/i, "pantry"],
+  // Beverages
+  [/\b(water|juice|wine|beer|coffee|tea|soda|sparkling|broth|stock|coconut milk|almond milk|oat milk)\b/i, "beverages"],
+];
+
+function autoCategory(name: string): string {
+  const lower = name.toLowerCase();
+  for (const [pattern, category] of CATEGORY_PATTERNS) {
+    if (pattern.test(lower)) return category;
+  }
+  return "other";
+}
 
 interface IngredientInput {
   name: string;
@@ -82,9 +113,12 @@ function normalizeIngredientName(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    // Remove common descriptors
-    .replace(/\b(fresh|dried|chopped|minced|diced|sliced|whole|large|medium|small|organic)\b/gi, "")
-    // Remove extra spaces
+    // Remove parenthetical notes like "(about 2 cups)" or "(see Note)"
+    .replace(/\([^)]*\)/g, "")
+    // Remove common descriptors that don't change the core ingredient
+    .replace(/\b(fresh|dried|chopped|minced|diced|sliced|grated|shredded|crushed|ground|whole|large|medium|small|thin|thick|fine|finely|coarsely|roughly|organic|lean|extra-lean|boneless|skinless|bone-in|skin-on|unsalted|salted|cold|warm|room temperature|softened|melted|frozen|thawed|ripe|unripe|raw|cooked|canned|packed|plain|unsweetened|low-sodium|no-salt-added|good|best|quality|about|approximately)\b/g, "")
+    // Remove extra hyphens and spaces
+    .replace(/[-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -139,7 +173,7 @@ export function aggregateIngredients(
         name: ing.name, // Keep original name formatting
         amount: undefined,
         unit: undefined,
-        category: ing.category || "other",
+        category: ing.category || autoCategory(ing.name),
         sources: [],
       });
     }
@@ -162,28 +196,38 @@ export function aggregateIngredients(
 
       if (baseConverted) {
         // Can convert to base unit
-        if (aggregated.amount === undefined) {
+        if (aggregated.amount === undefined || !aggregated.unit) {
+          // First entry with a convertible unit (or prior entry had no unit)
           aggregated.amount = baseConverted.amount;
           aggregated.unit = baseConverted.base;
         } else if (aggregated.unit === baseConverted.base) {
           // Same base unit, add amounts
           aggregated.amount += baseConverted.amount;
         }
-        // Different base units, keep separate (handled by sources)
+        // Different base units (e.g., weight vs volume), keep separate (tracked by sources)
       } else {
-        // Can't convert - use original or keep what we have
-        if (aggregated.amount === undefined) {
+        // Can't convert - use original unit or try to match
+        const normalizedUnit = ing.unit.toLowerCase().trim();
+        if (aggregated.amount === undefined || !aggregated.unit) {
           aggregated.amount = ing.amount;
           aggregated.unit = ing.unit;
-        } else if (aggregated.unit === ing.unit) {
-          // Same unit, add
+        } else if (aggregated.unit?.toLowerCase().trim() === normalizedUnit) {
+          // Same unit string, add
           aggregated.amount += ing.amount;
         }
-        // Different units that can't convert, sources track originals
+        // Different non-convertible units, sources track originals
       }
-    } else if (ing.amount && !aggregated.amount) {
-      // No unit but has amount
-      aggregated.amount = ing.amount;
+    } else if (ing.amount) {
+      // Has amount but no unit (e.g., "3 eggs")
+      if (aggregated.amount === undefined || aggregated.unit) {
+        // Only set count if we don't already have a unit-based amount
+        if (aggregated.amount === undefined) {
+          aggregated.amount = ing.amount;
+        }
+      } else {
+        // Both are unit-less counts, add them
+        aggregated.amount += ing.amount;
+      }
     }
   }
 

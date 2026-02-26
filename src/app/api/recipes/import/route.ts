@@ -82,15 +82,14 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Try JSON-LD extraction first
-      const { recipe: jsonLdRecipe, html, error } = await fetchAndExtractRecipe(body.url);
+      // Try structured data extraction first (JSON-LD, then microdata)
+      const { recipe: structuredRecipe, html, source: extractionSource, error } = await fetchAndExtractRecipe(body.url);
 
-      if (jsonLdRecipe) {
-        // Found structured data
+      if (structuredRecipe) {
         const response: ApiResponse<ImportResponse> = {
           success: true,
           data: {
-            recipe: jsonLdRecipe,
+            recipe: structuredRecipe,
             source: "json-ld",
           },
         };

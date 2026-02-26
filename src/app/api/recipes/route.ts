@@ -131,57 +131,60 @@ export async function POST(request: NextRequest) {
       body.totalTimeMinutes ||
       (body.prepTimeMinutes || 0) + (body.cookTimeMinutes || 0) || undefined;
 
-    // Insert the recipe
-    const [newRecipe] = await db
-      .insert(recipes)
-      .values({
-        title: body.title,
-        description: body.description,
-        sourceUrl: body.sourceUrl,
-        sourceName: body.sourceName || "Manual Entry",
-        imageUrl: body.imageUrl,
-        prepTimeMinutes: body.prepTimeMinutes,
-        cookTimeMinutes: body.cookTimeMinutes,
-        totalTimeMinutes: totalTime,
-        servings: body.servings,
-        difficulty: body.difficulty,
-        cuisine: body.cuisine,
-        mealType: body.mealType,
-        tags: body.tags,
-        notes: body.notes,
-      })
-      .returning();
+    // Use a transaction so recipe + ingredients + instructions are all-or-nothing
+    const newRecipeId = db.transaction((tx) => {
+      const newRecipe = tx
+        .insert(recipes)
+        .values({
+          title: body.title,
+          description: body.description,
+          sourceUrl: body.sourceUrl,
+          sourceName: body.sourceName || "Manual Entry",
+          imageUrl: body.imageUrl,
+          prepTimeMinutes: body.prepTimeMinutes,
+          cookTimeMinutes: body.cookTimeMinutes,
+          totalTimeMinutes: totalTime,
+          servings: body.servings,
+          difficulty: body.difficulty,
+          cuisine: body.cuisine,
+          mealType: body.mealType,
+          tags: body.tags,
+          notes: body.notes,
+        })
+        .returning()
+        .get();
 
-    // Insert ingredients
-    if (body.ingredients && body.ingredients.length > 0) {
-      await db.insert(ingredients).values(
-        body.ingredients.map((ing, index) => ({
-          recipeId: newRecipe.id,
-          name: ing.name,
-          amount: ing.amount,
-          unit: ing.unit,
-          notes: ing.notes,
-          category: ing.category,
-          sortOrder: index,
-        }))
-      );
-    }
+      if (body.ingredients && body.ingredients.length > 0) {
+        tx.insert(ingredients).values(
+          body.ingredients.map((ing, index) => ({
+            recipeId: newRecipe.id,
+            name: ing.name,
+            amount: ing.amount,
+            unit: ing.unit,
+            notes: ing.notes,
+            category: ing.category,
+            sortOrder: index,
+          }))
+        ).run();
+      }
 
-    // Insert instructions
-    if (body.instructions && body.instructions.length > 0) {
-      await db.insert(instructions).values(
-        body.instructions.map((inst) => ({
-          recipeId: newRecipe.id,
-          stepNumber: inst.stepNumber,
-          instruction: inst.instruction,
-          timeMinutes: inst.timeMinutes,
-        }))
-      );
-    }
+      if (body.instructions && body.instructions.length > 0) {
+        tx.insert(instructions).values(
+          body.instructions.map((inst) => ({
+            recipeId: newRecipe.id,
+            stepNumber: inst.stepNumber,
+            instruction: inst.instruction,
+            timeMinutes: inst.timeMinutes,
+          }))
+        ).run();
+      }
+
+      return newRecipe.id;
+    });
 
     // Fetch the complete recipe with relations
     const completeRecipe = await db.query.recipes.findFirst({
-      where: eq(recipes.id, newRecipe.id),
+      where: eq(recipes.id, newRecipeId),
       with: {
         ingredients: true,
         instructions: {

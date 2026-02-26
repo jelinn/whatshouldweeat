@@ -151,6 +151,43 @@ export default function PlannerPage() {
     setSelectedSlot(null);
   };
 
+  const handleCustomMeal = async (mealText: string) => {
+    if (!selectedSlot) return;
+
+    try {
+      const res = await fetch("/api/planner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weekStart,
+          dayOfWeek: selectedSlot.day,
+          mealType: selectedSlot.mealType,
+          notes: mealText,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setPlans((prev) => {
+          const filtered = prev.filter(
+            (p) =>
+              !(p.dayOfWeek === selectedSlot.day && p.mealType === selectedSlot.mealType)
+          );
+          return [...filtered, data.data];
+        });
+        toast.success("Meal added");
+      } else {
+        toast.error("Failed to add meal");
+      }
+    } catch {
+      toast.error("Failed to add meal");
+    }
+
+    setPickerOpen(false);
+    setSelectedSlot(null);
+  };
+
   const handleClearSlot = async (day: number, mealType: string) => {
     const plan = getPlan(day, mealType);
     if (!plan) return;
@@ -397,6 +434,7 @@ export default function PlannerPage() {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         onSelect={handleRecipeSelect}
+        onCustomMeal={handleCustomMeal}
       />
 
       {/* Notes Dialog */}

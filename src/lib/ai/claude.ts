@@ -246,25 +246,31 @@ Be creative but practical. Include realistic prep/cook times.`;
   }
 
   private normalizeRecipe(raw: Record<string, unknown>): ExtractedRecipe {
+    const safeNumber = (val: unknown): number | undefined => {
+      if (val === undefined || val === null) return undefined;
+      const num = typeof val === "string" ? parseFloat(val) : Number(val);
+      return isNaN(num) ? undefined : num;
+    };
+
     return {
       title: (raw.title as string) || "Untitled Recipe",
       description: raw.description as string | undefined,
-      prepTimeMinutes: raw.prepTimeMinutes as number | undefined,
-      cookTimeMinutes: raw.cookTimeMinutes as number | undefined,
-      totalTimeMinutes: raw.totalTimeMinutes as number | undefined,
-      servings: raw.servings as number | undefined,
+      prepTimeMinutes: safeNumber(raw.prepTimeMinutes),
+      cookTimeMinutes: safeNumber(raw.cookTimeMinutes),
+      totalTimeMinutes: safeNumber(raw.totalTimeMinutes),
+      servings: safeNumber(raw.servings),
       ingredients: Array.isArray(raw.ingredients)
         ? raw.ingredients.map((ing: Record<string, unknown>) => ({
-            name: (ing.name as string) || "",
-            amount: ing.amount as number | undefined,
-            unit: ing.unit as string | undefined,
-            notes: ing.notes as string | undefined,
+            name: String(ing.name || ""),
+            amount: safeNumber(ing.amount),
+            unit: ing.unit ? String(ing.unit) : undefined,
+            notes: ing.notes ? String(ing.notes) : undefined,
           }))
         : [],
       instructions: Array.isArray(raw.instructions)
         ? raw.instructions.map((inst: Record<string, unknown>, idx: number) => ({
-            stepNumber: (inst.stepNumber as number) || idx + 1,
-            instruction: (inst.instruction as string) || "",
+            stepNumber: safeNumber(inst.stepNumber) || idx + 1,
+            instruction: String(inst.instruction || ""),
           }))
         : [],
     };

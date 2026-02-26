@@ -144,10 +144,22 @@ export default function ImportRecipePage() {
   };
 
   const populateEditableFields = (r: ExtractedRecipe) => {
-    setTitle(r.title);
+    setTitle(r.title || "");
     setDescription(r.description || "");
-    setIngredients(r.ingredients);
-    setInstructions(r.instructions);
+    setIngredients(
+      (r.ingredients || []).map((ing) => ({
+        name: ing.name || "",
+        amount: ing.amount,
+        unit: ing.unit || "",
+        notes: ing.notes || "",
+      }))
+    );
+    setInstructions(
+      (r.instructions || []).map((inst, idx) => ({
+        stepNumber: inst.stepNumber || idx + 1,
+        instruction: inst.instruction || "",
+      }))
+    );
   };
 
   const updateIngredient = (
@@ -202,31 +214,38 @@ export default function ImportRecipePage() {
         .map((t) => t.trim())
         .filter(Boolean);
 
+      // Sanitize amounts - ensure they're valid numbers or undefined
+      const sanitizeAmount = (val: number | undefined): number | undefined => {
+        if (val === undefined || val === null) return undefined;
+        const num = Number(val);
+        return isNaN(num) ? undefined : num;
+      };
+
       const recipeData: CreateRecipeInput = {
         title: title.trim(),
         description: description.trim() || undefined,
         sourceUrl: recipe?.sourceUrl,
         sourceName: recipe?.sourceName,
         imageUrl: recipe?.imageUrl,
-        prepTimeMinutes: recipe?.prepTimeMinutes,
-        cookTimeMinutes: recipe?.cookTimeMinutes,
-        totalTimeMinutes: recipe?.totalTimeMinutes,
-        servings: recipe?.servings,
+        prepTimeMinutes: sanitizeAmount(recipe?.prepTimeMinutes),
+        cookTimeMinutes: sanitizeAmount(recipe?.cookTimeMinutes),
+        totalTimeMinutes: sanitizeAmount(recipe?.totalTimeMinutes),
+        servings: sanitizeAmount(recipe?.servings),
         difficulty: difficulty || undefined,
         cuisine: cuisine || undefined,
         mealType: mealType || undefined,
         tags: tags.length > 0 ? tags : undefined,
         notes: notes.trim() || undefined,
         ingredients: ingredients
-          .filter((ing) => ing.name.trim())
+          .filter((ing) => ing.name && ing.name.trim())
           .map((ing, index) => ({
             name: ing.name.trim(),
-            amount: ing.amount,
-            unit: ing.unit?.trim(),
-            notes: ing.notes?.trim(),
+            amount: sanitizeAmount(ing.amount),
+            unit: ing.unit?.trim() || undefined,
+            notes: ing.notes?.trim() || undefined,
           })),
         instructions: instructions
-          .filter((inst) => inst.instruction.trim())
+          .filter((inst) => inst.instruction && inst.instruction.trim())
           .map((inst, index) => ({
             stepNumber: index + 1,
             instruction: inst.instruction.trim(),
@@ -245,10 +264,12 @@ export default function ImportRecipePage() {
         toast.success("Recipe saved!");
         router.push(`/recipes/${data.data.id}`);
       } else {
+        console.error("Recipe save failed:", data.error);
         toast.error(data.error || "Failed to save recipe");
       }
-    } catch {
-      toast.error("Failed to save recipe");
+    } catch (error) {
+      console.error("Recipe save error:", error);
+      toast.error("Failed to save recipe. Check the console for details.");
     } finally {
       setSaving(false);
     }

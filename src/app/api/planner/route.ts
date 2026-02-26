@@ -85,13 +85,18 @@ export async function POST(request: NextRequest) {
     let plan;
 
     if (existing) {
-      // Update existing entry
+      // Update existing entry - only update fields that are explicitly provided
+      const updateData: Record<string, unknown> = {};
+      if ('recipeId' in body) {
+        updateData.recipeId = recipeId || null;
+      }
+      if ('notes' in body) {
+        updateData.notes = notes || null;
+      }
+
       const [updated] = await db
         .update(mealPlans)
-        .set({
-          recipeId: recipeId || null,
-          notes: notes || null,
-        })
+        .set(updateData)
         .where(eq(mealPlans.id, existing.id))
         .returning();
       plan = updated;
