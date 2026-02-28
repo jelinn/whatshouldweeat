@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-guard";
 import { db, mealPlans, recipes } from "@/lib/db";
 import { eq, and, gte, lte } from "drizzle-orm";
 import type { ApiResponse } from "@/types";
+import { getMealDate, isPastOrToday, recordCook } from "@/lib/services/cook-tracker";
 
 // Helper to get Monday of a given week
 function getMonday(date: Date): string {
@@ -14,6 +16,9 @@ function getMonday(date: Date): string {
 
 // GET /api/planner - Get meal plan for a week
 export async function GET(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const { searchParams } = new URL(request.url);
     const weekParam = searchParams.get("week");
@@ -60,6 +65,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/planner - Add or update a meal plan entry
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await request.json();
 
@@ -115,6 +123,14 @@ export async function POST(request: NextRequest) {
       plan = created;
     }
 
+    // Record cook history if the meal date is in the past or today
+    if (plan.recipeId) {
+      const mealDate = getMealDate(weekStart, dayOfWeek);
+      if (isPastOrToday(mealDate)) {
+        await recordCook(plan.recipeId, mealDate, plan.id);
+      }
+    }
+
     // Fetch with recipe details
     const planWithRecipe = await db.query.mealPlans.findFirst({
       where: eq(mealPlans.id, plan.id),
@@ -146,6 +162,9 @@ export async function POST(request: NextRequest) {
 
 // DELETE /api/planner - Clear a meal plan entry
 export async function DELETE(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

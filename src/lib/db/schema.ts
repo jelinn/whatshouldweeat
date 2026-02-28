@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, primaryKey } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 
@@ -155,6 +155,24 @@ export const staples = sqliteTable("staples", {
   ),
 });
 
+// Cook history tracking
+export const cookHistory = sqliteTable("cook_history", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  recipeId: text("recipe_id")
+    .notNull()
+    .references(() => recipes.id, { onDelete: "cascade" }),
+  cookedAt: text("cooked_at").notNull(), // YYYY-MM-DD
+  source: text("source").notNull(), // "meal_plan" | "manual"
+  mealPlanId: text("meal_plan_id").references(() => mealPlans.id, {
+    onDelete: "set null",
+  }),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date()
+  ),
+});
+
 // AI interaction history (for better recommendations)
 export const aiInteractions = sqliteTable("ai_interactions", {
   id: text("id")
@@ -169,10 +187,67 @@ export const aiInteractions = sqliteTable("ai_interactions", {
   ),
 });
 
+// Auth tables (NextAuth.js / @auth/drizzle-adapter)
+export const users = sqliteTable("user", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  name: text("name"),
+  email: text("email").unique(),
+  emailVerified: integer("emailVerified", { mode: "timestamp_ms" }),
+  image: text("image"),
+  password: text("password"),
+});
+
+export const accounts = sqliteTable(
+  "account",
+  {
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("providerAccountId").notNull(),
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
+    scope: text("scope"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
+  },
+  (account) => [
+    primaryKey({ columns: [account.provider, account.providerAccountId] }),
+  ]
+);
+
+export const sessions = sqliteTable("session", {
+  sessionToken: text("sessionToken").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const verificationTokens = sqliteTable(
+  "verificationToken",
+  {
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
+  },
+  (verificationToken) => [
+    primaryKey({
+      columns: [verificationToken.identifier, verificationToken.token],
+    }),
+  ]
+);
+
 // Relations
 export const recipesRelations = relations(recipes, ({ many }) => ({
   ingredients: many(ingredients),
   instructions: many(instructions),
+  cookHistory: many(cookHistory),
 }));
 
 export const ingredientsRelations = relations(ingredients, ({ one }) => ({
@@ -196,6 +271,17 @@ export const mealPlansRelations = relations(mealPlans, ({ one }) => ({
   }),
 }));
 
+export const cookHistoryRelations = relations(cookHistory, ({ one }) => ({
+  recipe: one(recipes, {
+    fields: [cookHistory.recipeId],
+    references: [recipes.id],
+  }),
+  mealPlan: one(mealPlans, {
+    fields: [cookHistory.mealPlanId],
+    references: [mealPlans.id],
+  }),
+}));
+
 // Types
 export type Recipe = typeof recipes.$inferSelect;
 export type NewRecipe = typeof recipes.$inferInsert;
@@ -209,3 +295,5 @@ export type GroceryItem = typeof groceryItems.$inferSelect;
 export type NewGroceryItem = typeof groceryItems.$inferInsert;
 export type Staple = typeof staples.$inferSelect;
 export type NewStaple = typeof staples.$inferInsert;
+export type CookHistory = typeof cookHistory.$inferSelect;
+export type NewCookHistory = typeof cookHistory.$inferInsert;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-guard";
 import {
   fetchAndExtractRecipe,
   toCreateRecipeInput,
@@ -21,6 +22,9 @@ interface ImportResponse {
 
 // POST /api/recipes/import - Import a recipe from URL or text
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const body: ImportRequest = await request.json();
 

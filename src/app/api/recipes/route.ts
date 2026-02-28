@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-guard";
 import { db, recipes, ingredients, instructions } from "@/lib/db";
 import { eq, desc, like, and, or, gte } from "drizzle-orm";
 import type {
@@ -10,6 +11,9 @@ import type {
 
 // GET /api/recipes - List all recipes with optional filtering
 export async function GET(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const { searchParams } = new URL(request.url);
 
@@ -115,6 +119,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/recipes - Create a new recipe
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const body: CreateRecipeInput = await request.json();
 

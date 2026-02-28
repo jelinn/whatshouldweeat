@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-guard";
 import { db, mealPlans } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { getMealDate, isPastOrToday, recordCook } from "@/lib/services/cook-tracker";
 
 // POST /api/planner/copy-week - Copy meal plan from one week to another
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await request.json();
     const { sourceWeek, targetWeek, overwrite = false } = body;
@@ -57,13 +62,21 @@ export async function POST(request: NextRequest) {
       }
 
       // Copy the plan
-      await db.insert(mealPlans).values({
+      const [copied] = await db.insert(mealPlans).values({
         weekStart: targetWeek,
         dayOfWeek: plan.dayOfWeek,
         mealType: plan.mealType,
         recipeId: plan.recipeId,
         notes: plan.notes,
-      });
+      }).returning();
+
+      if (copied.recipeId) {
+        const mealDate = getMealDate(targetWeek, plan.dayOfWeek);
+        if (isPastOrToday(mealDate)) {
+          await recordCook(copied.recipeId, mealDate, copied.id);
+        }
+      }
+
       copiedCount++;
     }
 

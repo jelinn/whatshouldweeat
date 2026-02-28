@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-guard";
 import { db, groceryItems, mealPlans, ingredients, recipes, staples } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import {
@@ -9,6 +10,9 @@ import type { ApiResponse } from "@/types";
 
 // GET /api/grocery - Get grocery list for a week
 export async function GET(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const { searchParams } = new URL(request.url);
     const weekStart = searchParams.get("week");
@@ -47,6 +51,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/grocery - Generate grocery list from meal plan
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await request.json();
     const { weekStart, includeStaples = true } = body;
@@ -166,6 +173,9 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/grocery - Update a grocery item (check/uncheck)
 export async function PATCH(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await request.json();
     const { id, isChecked } = body;
@@ -198,6 +208,9 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/grocery - Delete a grocery item
 export async function DELETE(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

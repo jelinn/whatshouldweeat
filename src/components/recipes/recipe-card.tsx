@@ -20,6 +20,20 @@ export function RecipeCard({ recipe, onToggleLove }: RecipeCardProps) {
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   };
 
+  const formatLastCooked = (date: Date | null | undefined) => {
+    if (!date) return null;
+    const now = new Date();
+    const d = new Date(date);
+    const diffMs = now.getTime() - d.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 30) return `${diffDays} days ago`;
+
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
   const handleLoveClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -108,6 +122,12 @@ export function RecipeCard({ recipe, onToggleLove }: RecipeCardProps) {
           {recipe.sourceName && recipe.sourceName !== "Manual Entry" && (
             <p className="text-xs text-muted-foreground mt-2">
               From: {recipe.sourceName}
+            </p>
+          )}
+
+          {recipe.lastCookedAt && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Last made: {formatLastCooked(recipe.lastCookedAt)}
             </p>
           )}
         </CardContent>

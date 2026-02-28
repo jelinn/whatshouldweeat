@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-guard";
 import { db, recipes } from "@/lib/db";
 import { desc, eq } from "drizzle-orm";
 import { getLLMProvider, isLLMConfigured } from "@/lib/ai";
@@ -6,6 +7,9 @@ import type { RecommendationContext } from "@/lib/ai";
 
 // POST /api/ai/recommend - Get AI-powered recipe recommendations
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     // Check if LLM is configured
     if (!isLLMConfigured()) {

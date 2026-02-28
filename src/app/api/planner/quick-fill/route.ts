@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-guard";
 import { db, mealPlans, recipes } from "@/lib/db";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { getMealDate, isPastOrToday, recordCook } from "@/lib/services/cook-tracker";
 
 // POST /api/planner/quick-fill - Fill empty dinner slots with random recipes
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await request.json();
     const { weekStart, mealTypes = ["dinner"], prioritizeLoved = true } = body;
@@ -66,6 +71,11 @@ export async function POST(request: NextRequest) {
               .where(eq(mealPlans.id, existing.id))
               .returning();
             createdPlans.push(updated);
+
+            const mealDate = getMealDate(weekStart, day);
+            if (isPastOrToday(mealDate)) {
+              await recordCook(recipe.id, mealDate, updated.id);
+            }
           } else {
             // Create new entry
             const [created] = await db
@@ -78,6 +88,11 @@ export async function POST(request: NextRequest) {
               })
               .returning();
             createdPlans.push(created);
+
+            const mealDate = getMealDate(weekStart, day);
+            if (isPastOrToday(mealDate)) {
+              await recordCook(recipe.id, mealDate, created.id);
+            }
           }
         }
       }

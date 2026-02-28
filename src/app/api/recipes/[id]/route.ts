@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-guard";
 import { db, recipes, ingredients, instructions } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import type { UpdateRecipeInput, RecipeWithDetails, ApiResponse } from "@/types";
@@ -9,6 +10,9 @@ interface RouteParams {
 
 // GET /api/recipes/[id] - Get a single recipe
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const { id } = await params;
 
@@ -48,6 +52,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PATCH /api/recipes/[id] - Update a recipe
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const { id } = await params;
     const body: UpdateRecipeInput = await request.json();
@@ -159,6 +166,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/recipes/[id] - Delete a recipe
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const { id } = await params;
 

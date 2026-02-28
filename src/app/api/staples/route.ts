@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-guard";
 import { db, staples } from "@/lib/db";
 import { eq } from "drizzle-orm";
 
 // GET /api/staples - Get all staples
 export async function GET() {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const allStaples = await db.query.staples.findMany({
       orderBy: (staples, { asc }) => [asc(staples.category), asc(staples.name)],
@@ -24,6 +28,9 @@ export async function GET() {
 
 // POST /api/staples - Add a new staple
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await request.json();
     const { name, category, defaultAmount, defaultUnit } = body;
@@ -72,6 +79,9 @@ export async function POST(request: NextRequest) {
 
 // DELETE /api/staples - Delete a staple
 export async function DELETE(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
