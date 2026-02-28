@@ -19,6 +19,7 @@ import { MealSlot } from "@/components/planner/meal-slot";
 import { RecipePicker } from "@/components/planner/recipe-picker";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MEAL_TYPES = ["breakfast", "lunch", "dinner"] as const;
 
 interface Recipe {
@@ -319,114 +320,173 @@ export default function PlannerPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Meal Planner</h1>
-          <p className="text-muted-foreground">Plan your weekly meals</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Meal Planner</h1>
+          <p className="text-muted-foreground text-sm md:text-base">Plan your weekly meals</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleCopyPreviousWeek}>
+          <Button variant="outline" size="sm" onClick={handleCopyPreviousWeek}>
             Copy Last Week
           </Button>
-          <Button variant="outline" onClick={handleQuickFill}>
+          <Button variant="outline" size="sm" onClick={handleQuickFill}>
             Quick Fill Dinners
           </Button>
         </div>
       </div>
 
       {/* Week Navigation */}
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={goToPreviousWeek}>
-          ← Previous Week
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
+          <span className="hidden sm:inline">&larr; Previous</span>
+          <span className="sm:hidden">&larr;</span>
         </Button>
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-semibold">{formatDateRange(currentSunday)}</h2>
+        <div className="flex items-center gap-2 md:gap-4">
+          <h2 className="text-base md:text-xl font-semibold text-center">{formatDateRange(currentSunday)}</h2>
           {formatWeekStart(getSunday(new Date())) !== weekStart && (
             <Button variant="ghost" size="sm" onClick={goToCurrentWeek}>
               Today
             </Button>
           )}
         </div>
-        <Button variant="outline" onClick={goToNextWeek}>
-          Next Week →
+        <Button variant="outline" size="sm" onClick={goToNextWeek}>
+          <span className="hidden sm:inline">Next &rarr;</span>
+          <span className="sm:hidden">&rarr;</span>
         </Button>
       </div>
 
-      {/* Calendar Grid */}
+      {/* Calendar Grid - Desktop (md+) */}
       {loading ? (
-        <div className="grid grid-cols-8 gap-2">
-          {/* Header skeleton */}
-          <div className="h-10" />
-          {DAYS.map((day) => (
-            <div key={day} className="h-10 bg-muted animate-pulse rounded" />
-          ))}
-          {/* Body skeleton */}
-          {MEAL_TYPES.map((meal) => (
-            <Fragment key={meal}>
-              <div className="h-24 bg-muted animate-pulse rounded" />
-              {DAYS.map((_, i) => (
-                <div key={`${meal}-${i}`} className="h-24 bg-muted animate-pulse rounded" />
-              ))}
-            </Fragment>
-          ))}
-        </div>
+        <>
+          {/* Desktop skeleton */}
+          <div className="hidden md:grid grid-cols-8 gap-2">
+            <div className="h-10" />
+            {DAYS.map((day) => (
+              <div key={day} className="h-10 bg-muted animate-pulse rounded" />
+            ))}
+            {MEAL_TYPES.map((meal) => (
+              <Fragment key={meal}>
+                <div className="h-24 bg-muted animate-pulse rounded" />
+                {DAYS.map((_, i) => (
+                  <div key={`${meal}-${i}`} className="h-24 bg-muted animate-pulse rounded" />
+                ))}
+              </Fragment>
+            ))}
+          </div>
+          {/* Mobile skeleton */}
+          <div className="md:hidden space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
+            ))}
+          </div>
+        </>
       ) : (
-        <div className="grid grid-cols-8 gap-2">
-          {/* Header Row */}
-          <div className="font-medium text-muted-foreground" />
-          {DAYS.map((day, index) => {
-            const date = new Date(currentSunday);
-            date.setDate(date.getDate() + index);
-            const isToday =
-              date.toDateString() === new Date().toDateString();
+        <>
+          {/* Desktop grid layout */}
+          <div className="hidden md:grid grid-cols-8 gap-2">
+            {/* Header Row */}
+            <div className="font-medium text-muted-foreground" />
+            {DAYS.map((day, index) => {
+              const date = new Date(currentSunday);
+              date.setDate(date.getDate() + index);
+              const isToday =
+                date.toDateString() === new Date().toDateString();
 
-            return (
-              <div
-                key={day}
-                className={`text-center py-2 font-medium ${
-                  isToday ? "bg-primary/10 rounded-t-lg" : ""
-                }`}
-              >
-                <div>{day}</div>
-                <div className="text-sm text-muted-foreground">
-                  {date.getDate()}
+              return (
+                <div
+                  key={day}
+                  className={`text-center py-2 font-medium ${
+                    isToday ? "bg-primary/10 rounded-t-lg" : ""
+                  }`}
+                >
+                  <div>{day}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {date.getDate()}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
 
-          {/* Meal Rows */}
-          {MEAL_TYPES.map((mealType) => (
-            <>
-              <div
-                key={`label-${mealType}`}
-                className="font-medium text-muted-foreground capitalize flex items-center"
-              >
-                {mealType}
-              </div>
-              {DAYS.map((_, dayIndex) => {
-                const plan = getPlan(dayIndex, mealType);
-                const date = new Date(currentSunday);
-                date.setDate(date.getDate() + dayIndex);
-                const isToday =
-                  date.toDateString() === new Date().toDateString();
+            {/* Meal Rows */}
+            {MEAL_TYPES.map((mealType) => (
+              <>
+                <div
+                  key={`label-${mealType}`}
+                  className="font-medium text-muted-foreground capitalize flex items-center"
+                >
+                  {mealType}
+                </div>
+                {DAYS.map((_, dayIndex) => {
+                  const plan = getPlan(dayIndex, mealType);
+                  const date = new Date(currentSunday);
+                  date.setDate(date.getDate() + dayIndex);
+                  const isToday =
+                    date.toDateString() === new Date().toDateString();
 
-                return (
-                  <MealSlot
-                    key={`${mealType}-${dayIndex}`}
-                    plan={plan}
-                    isToday={isToday}
-                    onClick={() => handleSlotClick(dayIndex, mealType)}
-                    onClear={() => handleClearSlot(dayIndex, mealType)}
-                    onNotesClick={() => handleNotesClick(dayIndex, mealType)}
-                  />
-                );
-              })}
-            </>
-          ))}
-        </div>
+                  return (
+                    <MealSlot
+                      key={`${mealType}-${dayIndex}`}
+                      plan={plan}
+                      isToday={isToday}
+                      onClick={() => handleSlotClick(dayIndex, mealType)}
+                      onClear={() => handleClearSlot(dayIndex, mealType)}
+                      onNotesClick={() => handleNotesClick(dayIndex, mealType)}
+                    />
+                  );
+                })}
+              </>
+            ))}
+          </div>
+
+          {/* Mobile day-by-day layout */}
+          <div className="md:hidden space-y-3">
+            {DAYS.map((day, dayIndex) => {
+              const date = new Date(currentSunday);
+              date.setDate(date.getDate() + dayIndex);
+              const isToday = date.toDateString() === new Date().toDateString();
+
+              return (
+                <Card
+                  key={day}
+                  className={`overflow-hidden ${isToday ? "border-primary/50 ring-1 ring-primary/20" : ""}`}
+                >
+                  <CardHeader className={`py-2 px-4 ${isToday ? "bg-primary/10" : "bg-muted/30"}`}>
+                    <CardTitle className="text-base flex items-center justify-between">
+                      <span>{day} {date.getMonth() + 1}/{date.getDate()}</span>
+                      {isToday && (
+                        <span className="text-xs font-normal text-primary">Today</span>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-2 space-y-1.5">
+                    {MEAL_TYPES.map((mealType) => {
+                      const plan = getPlan(dayIndex, mealType);
+                      return (
+                        <div key={mealType} className="flex items-start gap-2">
+                          <span className="text-xs font-medium text-muted-foreground capitalize w-14 pt-2.5 shrink-0">
+                            {mealType}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <MealSlot
+                              plan={plan}
+                              isToday={false}
+                              compact
+                              onClick={() => handleSlotClick(dayIndex, mealType)}
+                              onClear={() => handleClearSlot(dayIndex, mealType)}
+                              onNotesClick={() => handleNotesClick(dayIndex, mealType)}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* Recipe Picker Dialog */}

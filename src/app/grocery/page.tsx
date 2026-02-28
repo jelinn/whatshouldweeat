@@ -273,67 +273,70 @@ export default function GroceryPage() {
   const progress = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between no-print">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between no-print">
         <div>
-          <h1 className="text-3xl font-bold">Grocery List</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold">Grocery List</h1>
+          <p className="text-muted-foreground text-sm md:text-base">
             Shopping list for your meal plan
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {items.length > 0 && (
-            <Button variant="outline" onClick={() => window.print()}>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
               Print List
             </Button>
           )}
-          <Button variant="outline" onClick={() => setStaplesDialogOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setStaplesDialogOpen(true)}>
             Manage Staples
           </Button>
-          <Button onClick={handleGenerateList} disabled={generating}>
+          <Button size="sm" onClick={handleGenerateList} disabled={generating}>
             {generating ? "Generating..." : "Generate from Meal Plan"}
           </Button>
         </div>
       </div>
 
       {/* Week Navigation */}
-      <div className="flex items-center justify-between no-print">
-        <Button variant="outline" onClick={goToPreviousWeek}>
-          ← Previous Week
+      <div className="flex items-center justify-between gap-2 no-print">
+        <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
+          <span className="hidden sm:inline">&larr; Previous</span>
+          <span className="sm:hidden">&larr;</span>
         </Button>
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-semibold">{formatDateRange(currentSunday)}</h2>
+        <div className="flex items-center gap-2 md:gap-4">
+          <h2 className="text-base md:text-xl font-semibold text-center">{formatDateRange(currentSunday)}</h2>
           {formatWeekStart(getSunday(new Date())) !== weekStart && (
             <Button variant="ghost" size="sm" onClick={goToCurrentWeek}>
               Today
             </Button>
           )}
         </div>
-        <Button variant="outline" onClick={goToNextWeek}>
-          Next Week →
+        <Button variant="outline" size="sm" onClick={goToNextWeek}>
+          <span className="hidden sm:inline">Next &rarr;</span>
+          <span className="sm:hidden">&rarr;</span>
         </Button>
       </div>
 
       {/* Shopping Mode Toggle */}
       {items.length > 0 && (
-        <div className="flex items-center justify-between no-print shopping-mode-controls">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between no-print shopping-mode-controls">
+          <div className="flex items-center gap-3">
             <Button
+              size="sm"
               variant={shoppingMode ? "default" : "outline"}
               onClick={() => setShoppingMode(!shoppingMode)}
             >
-              {shoppingMode ? "Exit Shopping Mode" : "Start Shopping"}
+              {shoppingMode ? "Exit Shopping" : "Start Shopping"}
             </Button>
             {shoppingMode && (
-              <div className="text-sm text-muted-foreground">
-                {checkedCount} of {totalCount} items ({progress}%)
-              </div>
+              <span className="text-sm text-muted-foreground">
+                {checkedCount}/{totalCount} ({progress}%)
+              </span>
             )}
           </div>
           {checkedCount > 0 && (
-            <Button variant="outline" onClick={handleClearChecked}>
-              Clear {checkedCount} Checked Items
+            <Button variant="outline" size="sm" onClick={handleClearChecked}>
+              Clear {checkedCount} Checked
             </Button>
           )}
         </div>
@@ -396,8 +399,8 @@ export default function GroceryPage() {
             {Object.entries(groupedItems).map(([category, categoryItems]) => (
               <div key={category} className="print-category">
                 <Card>
-                  <CardHeader className="py-3 print:p-0">
-                    <CardTitle className="text-lg flex items-center gap-2 print:hidden">
+                  <CardHeader className="py-3 px-3 sm:px-6 print:p-0">
+                    <CardTitle className="text-base sm:text-lg flex items-center gap-2 print:hidden">
                       {CATEGORY_LABELS[category] || category}
                       <Badge variant="secondary">{categoryItems.length}</Badge>
                     </CardTitle>
@@ -405,19 +408,19 @@ export default function GroceryPage() {
                       {CATEGORY_LABELS[category] || category}
                     </div>
                   </CardHeader>
-                  <CardContent className="py-2 print:p-0">
+                  <CardContent className="py-2 px-2 sm:px-6 print:p-0">
                     <ul className="space-y-1 print:space-y-0">
                       {categoryItems.map((item) => (
                         <li
                           key={item.id}
-                          className={`flex items-center gap-3 py-2 px-2 rounded-lg transition-colors print:p-0 print:rounded-none ${
+                          className={`flex items-center gap-2 sm:gap-3 py-2 px-2 rounded-lg transition-colors print:p-0 print:rounded-none ${
                             item.isChecked
                               ? "bg-muted/50 text-muted-foreground"
                               : "hover:bg-muted/30"
                           }`}
                         >
                           {/* Screen checkbox */}
-                          <span className="print:hidden">
+                          <span className="print:hidden shrink-0">
                             <Checkbox
                               checked={item.isChecked}
                               onCheckedChange={() => handleToggleItem(item)}
@@ -426,7 +429,7 @@ export default function GroceryPage() {
                           {/* Print checkbox */}
                           <span className="hidden print:inline-block print-checkbox" />
                           <span
-                            className={`flex-1 print:no-underline ${
+                            className={`flex-1 min-w-0 text-sm sm:text-base print:no-underline ${
                               item.isChecked ? "line-through print:no-underline" : ""
                             }`}
                           >
@@ -444,11 +447,11 @@ export default function GroceryPage() {
                             )}
                           </span>
                           {!shoppingMode && (
-                            <div className="flex gap-1 no-print">
+                            <div className="flex gap-1 no-print shrink-0">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50"
                                 onClick={() => handleMarkAlreadyHave(item)}
                                 title="Mark as already have"
                               >
@@ -457,10 +460,10 @@ export default function GroceryPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                                 onClick={() => handleDeleteItem(item.id)}
                               >
-                                ×
+                                &times;
                               </Button>
                             </div>
                           )}
@@ -487,25 +490,28 @@ export default function GroceryPage() {
 
           <div className="space-y-4">
             {/* Add new staple */}
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 placeholder="New staple (e.g., Milk)"
                 value={newStapleName}
                 onChange={(e) => setNewStapleName(e.target.value)}
+                className="flex-1"
               />
-              <Select value={newStapleCategory} onValueChange={setNewStapleCategory}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {INGREDIENT_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c.charAt(0).toUpperCase() + c.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button onClick={handleAddStaple}>Add</Button>
+              <div className="flex gap-2">
+                <Select value={newStapleCategory} onValueChange={setNewStapleCategory}>
+                  <SelectTrigger className="w-full sm:w-32">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INGREDIENT_CATEGORIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c.charAt(0).toUpperCase() + c.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleAddStaple}>Add</Button>
+              </div>
             </div>
 
             <Separator />
@@ -534,7 +540,7 @@ export default function GroceryPage() {
                       className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                       onClick={() => handleDeleteStaple(staple.id)}
                     >
-                      ×
+                      &times;
                     </Button>
                   </li>
                 ))}
