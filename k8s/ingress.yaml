@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: meals
+  namespace: homelab
+  annotations:
+    # Traefik (k3s default ingress)
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+spec:
+  rules:
+    # Access via hostname (requires local DNS setup)
+    - host: meals.home
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: meals
+                port:
+                  number: 80
+    # Also allow access without hostname (via IP)
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: meals
+                port:
+                  number: 80
