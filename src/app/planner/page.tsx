@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, Fragment } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -62,6 +63,7 @@ function formatDateRange(sunday: Date): string {
 }
 
 export default function PlannerPage() {
+  const router = useRouter();
   const [currentSunday, setCurrentMonday] = useState(() => getSunday(new Date()));
   const [plans, setPlans] = useState<MealPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -433,6 +435,7 @@ export default function PlannerPage() {
                       onClick={() => handleSlotClick(dayIndex, mealType)}
                       onClear={() => handleClearSlot(dayIndex, mealType)}
                       onNotesClick={() => handleNotesClick(dayIndex, mealType)}
+                      onViewRecipe={(id) => router.push(`/recipes/${id}`)}
                     />
                   );
                 })}
@@ -476,6 +479,7 @@ export default function PlannerPage() {
                               onClick={() => handleSlotClick(dayIndex, mealType)}
                               onClear={() => handleClearSlot(dayIndex, mealType)}
                               onNotesClick={() => handleNotesClick(dayIndex, mealType)}
+                              onViewRecipe={(id) => router.push(`/recipes/${id}`)}
                             />
                           </div>
                         </div>

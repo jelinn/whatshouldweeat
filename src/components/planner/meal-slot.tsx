@@ -31,6 +31,7 @@ interface MealSlotProps {
   onClick: () => void;
   onClear: () => void;
   onNotesClick: () => void;
+  onViewRecipe?: (recipeId: string) => void;
 }
 
 export function MealSlot({
@@ -40,10 +41,19 @@ export function MealSlot({
   onClick,
   onClear,
   onNotesClick,
+  onViewRecipe,
 }: MealSlotProps) {
   const hasRecipe = plan?.recipe;
   const hasNotes = plan?.notes;
   const isEmpty = !hasRecipe && !hasNotes;
+
+  const handleCardClick = () => {
+    if (hasRecipe && onViewRecipe && plan?.recipeId) {
+      onViewRecipe(plan.recipeId);
+    } else {
+      onClick();
+    }
+  };
 
   if (compact) {
     // Mobile compact layout - horizontal row
@@ -52,7 +62,7 @@ export function MealSlot({
         className={`p-2 cursor-pointer transition-all hover:shadow-md ${
           isEmpty ? "border-dashed" : ""
         }`}
-        onClick={onClick}
+        onClick={handleCardClick}
       >
         {hasRecipe ? (
           <div className="flex items-center gap-2">
@@ -112,7 +122,7 @@ export function MealSlot({
       className={`min-h-24 p-2 cursor-pointer transition-all hover:shadow-md ${
         isToday ? "border-primary/50 bg-primary/5" : ""
       } ${isEmpty ? "border-dashed" : ""}`}
-      onClick={onClick}
+      onClick={handleCardClick}
     >
       {hasRecipe ? (
         <div className="h-full flex flex-col">

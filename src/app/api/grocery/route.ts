@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-guard";
 import { db, groceryItems, mealPlans, ingredients, recipes, staples } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, isNotNull, sql } from "drizzle-orm";
 import {
   aggregateIngredients,
   type IngredientInput,
@@ -98,11 +98,15 @@ export async function POST(request: NextRequest) {
     // Aggregate ingredients
     const aggregated = aggregateIngredients(allIngredients);
 
-    // Clear existing grocery items for this week (except manually added)
+    // Clear existing auto-generated items for this week (recipe-sourced + staples)
+    // Preserve manually added items (isStaple=false AND sourceRecipeId=null)
     await db.delete(groceryItems).where(
       and(
         eq(groceryItems.weekStart, weekStart),
-        eq(groceryItems.isStaple, false)
+        or(
+          eq(groceryItems.isStaple, true),
+          isNotNull(groceryItems.sourceRecipeId)
+        )
       )
     );
 
@@ -191,6 +195,21 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "weekStart is required" },
         { status: 400 }
+      );
+    }
+
+    // Check if item already exists for this week (case-insensitive)
+    const existing = await db.query.groceryItems.findFirst({
+      where: and(
+        eq(groceryItems.weekStart, weekStart),
+        sql`lower(${groceryItems.ingredientName}) = lower(${ingredientName.trim()})`
+      ),
+    });
+
+    if (existing) {
+      return NextResponse.json(
+        { success: false, error: `"${ingredientName.trim()}" is already on the list` },
+        { status: 409 }
       );
     }
 

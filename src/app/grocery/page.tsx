@@ -50,6 +50,15 @@ interface Staple {
   defaultUnit: string | null;
 }
 
+interface MealPlan {
+  id: string;
+  dayOfWeek: number;
+  mealType: string;
+  recipeId: string | null;
+  notes: string | null;
+  recipe: { id: string; title: string } | null;
+}
+
 // Get Sunday of a given week (week starts on Sunday)
 function getSunday(date: Date): Date {
   const d = new Date(date);
@@ -89,6 +98,9 @@ export default function GroceryPage() {
   const [addItemCategory, setAddItemCategory] = useState("");
   const [addingItem, setAddingItem] = useState(false);
 
+  // Meal plans for print summary
+  const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
+
   // Shopping mode
   const [shoppingMode, setShoppingMode] = useState(false);
 
@@ -97,14 +109,22 @@ export default function GroceryPage() {
   const fetchGroceryList = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/grocery?week=${weekStart}`);
-      const data = await res.json();
+      const [groceryRes, plannerRes] = await Promise.all([
+        fetch(`/api/grocery?week=${weekStart}`),
+        fetch(`/api/planner?week=${weekStart}`),
+      ]);
+      const groceryData = await groceryRes.json();
+      const plannerData = await plannerRes.json();
 
-      if (data.success) {
-        setItems(data.data.items);
-        setStaples(data.data.staples);
+      if (groceryData.success) {
+        setItems(groceryData.data.items);
+        setStaples(groceryData.data.staples);
       } else {
         toast.error("Failed to load grocery list");
+      }
+
+      if (plannerData.success) {
+        setMealPlans(plannerData.data.plans);
       }
     } catch {
       toast.error("Failed to load grocery list");
@@ -503,13 +523,94 @@ export default function GroceryPage() {
         </Card>
       ) : (
         <div className="print-grocery-list">
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media print {
+              @page { margin: 0.25in; size: letter; }
+              .grocery-print-columns {
+                column-count: 3 !important;
+                column-gap: 12px !important;
+              }
+              .print-grocery-list .print-category {
+                break-inside: avoid;
+              }
+              .print-grocery-list li {
+                font-size: 7.5pt !important;
+                line-height: 1.3 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                gap: 3px !important;
+              }
+              .print-grocery-list .print-category-header {
+                font-size: 8pt !important;
+                font-weight: bold;
+                border-bottom: 0.5pt solid #333;
+                margin-top: 4px;
+                margin-bottom: 1px;
+                padding-bottom: 0;
+              }
+              .print-grocery-list .print-title {
+                font-size: 10pt !important;
+                font-weight: bold;
+                margin-bottom: 0 !important;
+              }
+              .print-grocery-list .print-subtitle {
+                font-size: 7.5pt !important;
+                color: #666;
+                margin-bottom: 2px !important;
+              }
+              .print-grocery-list .print-checkbox {
+                width: 7px !important;
+                height: 7px !important;
+                min-width: 7px !important;
+                border: 0.5pt solid #333 !important;
+              }
+              .print-grocery-list [class*="card"],
+              .print-grocery-list [class*="Card"] {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                background: none !important;
+              }
+              .print-meal-summary {
+                font-size: 7pt;
+                line-height: 1.25;
+                margin-bottom: 4px;
+                border-bottom: 0.5pt solid #999;
+                padding-bottom: 3px;
+              }
+              .print-meal-summary span.day-label {
+                font-weight: bold;
+              }
+            }
+          `}} />
           {/* Print-only header */}
           <div className="hidden print:block">
             <div className="print-title">Grocery List</div>
             <div className="print-subtitle">{formatDateRange(currentSunday)}</div>
+            {mealPlans.length > 0 && (() => {
+              const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+              const assignedDays = DAYS.map((day, i) => {
+                const dayMeals = mealPlans
+                  .filter((p) => p.dayOfWeek === i && (p.recipe || p.notes))
+                  .map((p) => p.recipe?.title || p.notes)
+                  .filter(Boolean);
+                return dayMeals.length > 0 ? { day, meals: dayMeals } : null;
+              }).filter(Boolean);
+              if (assignedDays.length === 0) return null;
+              return (
+                <div className="print-meal-summary">
+                  {assignedDays.map((d) => (
+                    <div key={d!.day}>
+                      <span className="day-label">{d!.day}:</span> {d!.meals.join(", ")}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
-          <div className="space-y-4 print:space-y-0 print:print-columns">
+          <div className="space-y-4 print:space-y-0 grocery-print-columns">
             {Object.entries(groupedItems).map(([category, categoryItems]) => (
               <div key={category} className="print-category">
                 <Card>
