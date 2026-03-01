@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ExtractedRecipe } from "@/lib/services/recipe-extractor";
 import type {
   LLMProvider,
+  ImageData,
   RecommendationContext,
   Recommendation,
   RecipeGenerationPrompt,
@@ -62,6 +63,34 @@ Ignore:
 - Comments and reviews
 - Navigation and footer content
 - Related recipes`;
+
+const IMAGE_EXTRACTION_PROMPT = `You are a recipe extraction assistant. Extract the recipe from these cookbook page photos.
+
+If multiple images are provided, they are consecutive pages of the same recipe. Combine information from all pages.
+
+Return ONLY valid JSON with this exact structure (no markdown, no explanation):
+{
+  "title": "Recipe Title",
+  "description": "Brief description of the dish",
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 30,
+  "totalTimeMinutes": 45,
+  "servings": 4,
+  "ingredients": [
+    {"name": "ingredient name", "amount": 2, "unit": "cups", "notes": "optional notes"}
+  ],
+  "instructions": [
+    {"stepNumber": 1, "instruction": "Step description"}
+  ]
+}
+
+Rules:
+- Extract ALL ingredients mentioned across all pages
+- Extract ALL steps in order across all pages
+- For amounts, use decimal numbers (1.5 not "1 1/2")
+- If a value is unknown, omit the field
+- Keep ingredient names clean (no amounts in the name)
+- Instructions should be clear, individual steps`;
 
 export class ClaudeProvider implements LLMProvider {
   name = "claude";
@@ -129,6 +158,46 @@ export class ClaudeProvider implements LLMProvider {
       const recipe = JSON.parse(jsonMatch[0]);
       const normalized = this.normalizeRecipe(recipe);
       normalized.sourceUrl = url;
+      return normalized;
+    } catch (e) {
+      throw new Error(`Failed to parse recipe from Claude response: ${e}`);
+    }
+  }
+
+  async extractRecipeFromImages(images: ImageData[]): Promise<ExtractedRecipe> {
+    const content: Anthropic.Messages.ContentBlockParam[] = [
+      ...images.map(
+        (img): Anthropic.Messages.ImageBlockParam => ({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: img.mediaType,
+            data: img.data,
+          },
+        })
+      ),
+      { type: "text", text: IMAGE_EXTRACTION_PROMPT },
+    ];
+
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 4096,
+      messages: [{ role: "user", content }],
+    });
+
+    const responseContent = response.content[0];
+    if (responseContent.type !== "text") {
+      throw new Error("Unexpected response type from Claude");
+    }
+
+    try {
+      const jsonMatch = responseContent.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("No JSON found in response");
+      }
+      const recipe = JSON.parse(jsonMatch[0]);
+      const normalized = this.normalizeRecipe(recipe);
+      normalized.sourceName = "Cookbook Photo";
       return normalized;
     } catch (e) {
       throw new Error(`Failed to parse recipe from Claude response: ${e}`);

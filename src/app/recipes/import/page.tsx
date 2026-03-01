@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ interface ExtractedRecipe {
   sourceUrl?: string;
 }
 
-type ImportSource = "json-ld" | "llm-html" | "llm-text";
+type ImportSource = "json-ld" | "llm-html" | "llm-text" | "llm-photos";
 
 export default function ImportRecipePage() {
   const router = useRouter();
@@ -68,6 +68,11 @@ export default function ImportRecipePage() {
   const [notes, setNotes] = useState("");
   const [ingredients, setIngredients] = useState<ExtractedRecipe["ingredients"]>([]);
   const [instructions, setInstructions] = useState<ExtractedRecipe["instructions"]>([]);
+
+  // Photo state
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Saving state
   const [saving, setSaving] = useState(false);
@@ -138,6 +143,87 @@ export default function ImportRecipePage() {
       }
     } catch {
       toast.error("Failed to extract recipe");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+
+      const allowedTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+      ];
+      const maxSize = 10 * 1024 * 1024; // 10MB
+
+      const totalFiles = selectedFiles.length + files.length;
+      if (totalFiles > 6) {
+        toast.error("Maximum 6 images allowed");
+        return;
+      }
+
+      for (const file of files) {
+        if (!allowedTypes.includes(file.type)) {
+          toast.error(`Unsupported file type: ${file.name}`);
+          return;
+        }
+        if (file.size > maxSize) {
+          toast.error(`File "${file.name}" exceeds 10MB limit`);
+          return;
+        }
+      }
+
+      const newPreviews = files.map((f) => URL.createObjectURL(f));
+      setSelectedFiles((prev) => [...prev, ...files]);
+      setImagePreviews((prev) => [...prev, ...newPreviews]);
+
+      // Reset input so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+    [selectedFiles.length]
+  );
+
+  const removeImage = useCallback((index: number) => {
+    setImagePreviews((prev) => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleImportPhotos = async () => {
+    if (selectedFiles.length === 0) {
+      toast.error("Please select at least one image");
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      selectedFiles.forEach((file) => formData.append("images", file));
+
+      const res = await fetch("/api/recipes/import/photos", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setRecipe(data.data.recipe);
+        setImportSource(data.data.source);
+        populateEditableFields(data.data.recipe);
+        toast.success("Recipe extracted from photos");
+      } else {
+        toast.error(data.error || "Failed to extract recipe from photos");
+      }
+    } catch {
+      toast.error("Failed to extract recipe from photos");
     } finally {
       setImporting(false);
     }
@@ -280,6 +366,9 @@ export default function ImportRecipePage() {
     setImportSource(null);
     setUrl("");
     setText("");
+    imagePreviews.forEach((url) => URL.revokeObjectURL(url));
+    setSelectedFiles([]);
+    setImagePreviews([]);
     setTitle("");
     setDescription("");
     setCuisine("");
@@ -298,14 +387,15 @@ export default function ImportRecipePage() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Import Recipe</h1>
           <p className="text-muted-foreground">
-            Import a recipe from a URL or paste the recipe text
+            Import a recipe from a URL, paste text, or upload photos
           </p>
         </div>
 
         <Tabs defaultValue="url" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="url">From URL</TabsTrigger>
             <TabsTrigger value="text">Paste Text</TabsTrigger>
+            <TabsTrigger value="photos">From Photos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="url">
@@ -388,6 +478,76 @@ export default function ImportRecipePage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="photos">
+            <Card>
+              <CardHeader>
+                <CardTitle>Upload Cookbook Photos</CardTitle>
+                <CardDescription>
+                  Photograph pages from a cookbook and AI will extract the recipe
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="photos">Recipe Photos</Label>
+                  <Input
+                    ref={fileInputRef}
+                    id="photos"
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    onChange={handleFileSelect}
+                    disabled={importing}
+                    className="cursor-pointer"
+                  />
+                </div>
+
+                {imagePreviews.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {imagePreviews.map((preview, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={preview}
+                          alt={`Page ${index + 1}`}
+                          className="w-full h-40 object-cover rounded-lg border"
+                        />
+                        <div className="absolute top-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                          Page {index + 1}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="text-sm text-muted-foreground">
+                  <p className="mb-2">Tips for best results:</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Ensure text is in focus and well-lit</li>
+                    <li>Upload multiple pages if the recipe spans them</li>
+                    <li>Supported formats: JPEG, PNG, GIF, WEBP</li>
+                    <li>Maximum 6 images, 10MB each</li>
+                  </ul>
+                </div>
+
+                <Button
+                  onClick={handleImportPhotos}
+                  disabled={importing || selectedFiles.length === 0}
+                  className="w-full"
+                >
+                  {importing
+                    ? "Extracting..."
+                    : `Extract Recipe (${selectedFiles.length} ${selectedFiles.length === 1 ? "image" : "images"})`}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
 
         <div className="mt-4 text-center">
@@ -412,6 +572,8 @@ export default function ImportRecipePage() {
                   ? "Structured Data"
                   : importSource === "llm-html"
                   ? "AI Extracted"
+                  : importSource === "llm-photos"
+                  ? "AI from Photos"
                   : "AI from Text"}
               </Badge>
               {recipe.sourceName && (

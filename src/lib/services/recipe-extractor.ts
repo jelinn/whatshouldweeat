@@ -23,9 +23,32 @@ interface ExtractedRecipe {
   sourceUrl?: string;
 }
 
+// Decode common HTML entities that cheerio leaves in JSON-LD content
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
 // Parse ISO 8601 duration (PT30M, PT1H30M, P0DT0H45M0S, etc.) to minutes
-function parseDuration(duration: string | undefined): number | undefined {
+// Handles non-string inputs gracefully (some sites use Duration objects)
+function parseDuration(duration: unknown): number | undefined {
   if (!duration) return undefined;
+
+  // Handle Duration objects like {minValue: "PT135M", maxValue: "PT315M"}
+  if (typeof duration === "object" && duration !== null) {
+    const obj = duration as Record<string, unknown>;
+    // Prefer minValue for minimum time estimate
+    return parseDuration(obj.minValue) || parseDuration(obj.maxValue) || parseDuration(obj.value);
+  }
+
+  if (typeof duration !== "string") return undefined;
 
   // Handle full ISO 8601: P[nD]T[nH][nM][nS]
   const match = duration.match(/P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/i);
@@ -41,12 +64,14 @@ function parseDuration(duration: string | undefined): number | undefined {
 }
 
 // Parse yield/servings from various formats
-function parseServings(yield_: string | number | undefined): number | undefined {
+function parseServings(yield_: unknown): number | undefined {
   if (!yield_) return undefined;
   if (typeof yield_ === "number") return yield_;
+  // Handle arrays like ["4 servings"]
+  if (Array.isArray(yield_)) return parseServings(yield_[0]);
 
   // Extract first number from string like "4 servings" or "Makes 12"
-  const match = yield_.toString().match(/(\d+)/);
+  const match = String(yield_).match(/(\d+)/);
   return match ? parseInt(match[1]) : undefined;
 }
 
@@ -159,7 +184,7 @@ function extractFromJsonLd(jsonLd: unknown): ExtractedRecipe | null {
   // Extract ingredients
   const rawIngredients = data.recipeIngredient as string[] | undefined;
   const ingredients = rawIngredients
-    ? rawIngredients.map((ing) => parseIngredient(ing))
+    ? rawIngredients.map((ing) => parseIngredient(decodeHtmlEntities(ing)))
     : [];
 
   // Extract instructions
@@ -169,13 +194,14 @@ function extractFromJsonLd(jsonLd: unknown): ExtractedRecipe | null {
   if (Array.isArray(rawInstructions)) {
     instructions = rawInstructions.map((inst, index) => {
       if (typeof inst === "string") {
-        return { stepNumber: index + 1, instruction: inst };
+        return { stepNumber: index + 1, instruction: decodeHtmlEntities(inst) };
       }
       if (typeof inst === "object" && inst !== null) {
         const instObj = inst as Record<string, unknown>;
+        const text = (instObj.text as string) || (instObj.name as string) || "";
         return {
           stepNumber: index + 1,
-          instruction: (instObj.text as string) || (instObj.name as string) || "",
+          instruction: decodeHtmlEntities(text),
         };
       }
       return { stepNumber: index + 1, instruction: "" };
@@ -202,14 +228,19 @@ function extractFromJsonLd(jsonLd: unknown): ExtractedRecipe | null {
     imageUrl = (image as Record<string, unknown>).url as string;
   }
 
+  const title = decodeHtmlEntities(((data.name as string) || "Untitled Recipe").trim());
+  const description = data.description
+    ? decodeHtmlEntities((data.description as string).trim())
+    : undefined;
+
   return {
-    title: (data.name as string) || "Untitled Recipe",
-    description: (data.description as string) || undefined,
+    title,
+    description,
     imageUrl,
-    prepTimeMinutes: parseDuration(data.prepTime as string),
-    cookTimeMinutes: parseDuration(data.cookTime as string),
-    totalTimeMinutes: parseDuration(data.totalTime as string),
-    servings: parseServings(data.recipeYield as string | number),
+    prepTimeMinutes: parseDuration(data.prepTime),
+    cookTimeMinutes: parseDuration(data.cookTime),
+    totalTimeMinutes: parseDuration(data.totalTime),
+    servings: parseServings(data.recipeYield),
     ingredients,
     instructions,
   };

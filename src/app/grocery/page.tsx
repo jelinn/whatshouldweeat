@@ -82,6 +82,13 @@ export default function GroceryPage() {
   const [newStapleName, setNewStapleName] = useState("");
   const [newStapleCategory, setNewStapleCategory] = useState("");
 
+  // Add item form
+  const [addItemName, setAddItemName] = useState("");
+  const [addItemAmount, setAddItemAmount] = useState("");
+  const [addItemUnit, setAddItemUnit] = useState("");
+  const [addItemCategory, setAddItemCategory] = useState("");
+  const [addingItem, setAddingItem] = useState(false);
+
   // Shopping mode
   const [shoppingMode, setShoppingMode] = useState(false);
 
@@ -225,6 +232,45 @@ export default function GroceryPage() {
     toast.success(`Cleared ${checkedItems.length} checked items`);
   };
 
+  const handleAddItem = async () => {
+    if (!addItemName.trim()) {
+      toast.error("Item name is required");
+      return;
+    }
+
+    setAddingItem(true);
+    try {
+      const res = await fetch("/api/grocery", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingredientName: addItemName.trim(),
+          amount: addItemAmount ? parseFloat(addItemAmount) : null,
+          unit: addItemUnit.trim() || null,
+          category: addItemCategory || "other",
+          weekStart,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setItems((prev) => [...prev, data.data]);
+        setAddItemName("");
+        setAddItemAmount("");
+        setAddItemUnit("");
+        setAddItemCategory("");
+        toast.success(`Added "${addItemName.trim()}" to list`);
+      } else {
+        toast.error(data.error || "Failed to add item");
+      }
+    } catch {
+      toast.error("Failed to add item");
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
   const handleMarkAlreadyHave = async (item: GroceryItem) => {
     // Remove the item from the grocery list since user already has it
     try {
@@ -351,6 +397,74 @@ export default function GroceryPage() {
           />
         </div>
       )}
+
+      {/* Add Item Form */}
+      <Card className="no-print">
+        <CardContent className="py-3 px-3 sm:px-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <Label htmlFor="add-item-name" className="text-xs text-muted-foreground">Item</Label>
+              <Input
+                id="add-item-name"
+                placeholder="e.g., Soy sauce"
+                value={addItemName}
+                onChange={(e) => setAddItemName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAddItem(); }}
+                disabled={addingItem}
+              />
+            </div>
+            <div className="flex gap-2">
+              <div className="w-20">
+                <Label htmlFor="add-item-amount" className="text-xs text-muted-foreground">Amt</Label>
+                <Input
+                  id="add-item-amount"
+                  type="number"
+                  step="0.25"
+                  placeholder="1"
+                  value={addItemAmount}
+                  onChange={(e) => setAddItemAmount(e.target.value)}
+                  disabled={addingItem}
+                />
+              </div>
+              <div className="w-20">
+                <Label htmlFor="add-item-unit" className="text-xs text-muted-foreground">Unit</Label>
+                <Input
+                  id="add-item-unit"
+                  placeholder="bottle"
+                  value={addItemUnit}
+                  onChange={(e) => setAddItemUnit(e.target.value)}
+                  disabled={addingItem}
+                />
+              </div>
+              <div className="w-28">
+                <Label className="text-xs text-muted-foreground">Category</Label>
+                <Select value={addItemCategory} onValueChange={setAddItemCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Other" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INGREDIENT_CATEGORIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c.charAt(0).toUpperCase() + c.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button
+                  size="sm"
+                  onClick={handleAddItem}
+                  disabled={addingItem || !addItemName.trim()}
+                  className="h-9"
+                >
+                  {addingItem ? "..." : "Add"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Grocery List */}
       {loading ? (

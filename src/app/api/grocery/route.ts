@@ -171,6 +171,56 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PUT /api/grocery - Add a one-off item to the grocery list
+export async function PUT(request: NextRequest) {
+  const unauthorized = await requireAuth();
+  if (unauthorized) return unauthorized;
+
+  try {
+    const body = await request.json();
+    const { ingredientName, amount, unit, category, weekStart } = body;
+
+    if (!ingredientName?.trim()) {
+      return NextResponse.json(
+        { success: false, error: "Item name is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!weekStart) {
+      return NextResponse.json(
+        { success: false, error: "weekStart is required" },
+        { status: 400 }
+      );
+    }
+
+    const [created] = await db
+      .insert(groceryItems)
+      .values({
+        ingredientName: ingredientName.trim(),
+        amount: amount ? Number(amount) : null,
+        unit: unit?.trim() || null,
+        category: category || "other",
+        isChecked: false,
+        isStaple: false,
+        sourceRecipeId: null,
+        weekStart,
+      })
+      .returning();
+
+    return NextResponse.json({
+      success: true,
+      data: created,
+    });
+  } catch (error) {
+    console.error("Error adding grocery item:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to add grocery item" },
+      { status: 500 }
+    );
+  }
+}
+
 // PATCH /api/grocery - Update a grocery item (check/uncheck)
 export async function PATCH(request: NextRequest) {
   const unauthorized = await requireAuth();

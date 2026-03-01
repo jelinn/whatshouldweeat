@@ -1,5 +1,11 @@
 import type { ExtractedRecipe } from "@/lib/services/recipe-extractor";
 
+// Image data for vision-based extraction
+export interface ImageData {
+  data: string; // base64-encoded image
+  mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+}
+
 // Context for recipe recommendations
 export interface RecommendationContext {
   lovedRecipes: {
@@ -47,6 +53,9 @@ export interface LLMProvider {
 
   // Extract recipe from HTML when structured data is missing
   extractRecipeFromHtml(html: string, url: string): Promise<ExtractedRecipe>;
+
+  // Extract recipe from photos (e.g. cookbook pages)
+  extractRecipeFromImages(images: ImageData[]): Promise<ExtractedRecipe>;
 
   // Generate recipe recommendations
   recommendRecipes(context: RecommendationContext): Promise<Recommendation[]>;
