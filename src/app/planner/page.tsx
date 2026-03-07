@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Fragment } from "react";
+import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -20,7 +19,6 @@ import { MealSlot } from "@/components/planner/meal-slot";
 import { RecipePicker } from "@/components/planner/recipe-picker";
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MEAL_TYPES = ["breakfast", "lunch", "dinner"] as const;
 
 interface Recipe {
@@ -41,11 +39,10 @@ interface MealPlan {
   recipe: Recipe | null;
 }
 
-// Get Sunday of a given week (week starts on Sunday)
 function getSunday(date: Date): Date {
   const d = new Date(date);
-  const day = d.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  d.setDate(d.getDate() - day); // Go back to Sunday
+  const day = d.getDay();
+  d.setDate(d.getDate() - day);
   d.setHours(0, 0, 0, 0);
   return d;
 }
@@ -57,16 +54,26 @@ function formatWeekStart(date: Date): string {
 function formatDateRange(sunday: Date): string {
   const saturday = new Date(sunday);
   saturday.setDate(saturday.getDate() + 6);
-
   const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
   return `${sunday.toLocaleDateString("en-US", options)} - ${saturday.toLocaleDateString("en-US", options)}`;
+}
+
+function makeSlotId(dayOfWeek: number, mealType: string) {
+  return `${dayOfWeek}-${mealType}`;
+}
+
+function parseSlotId(id: string) {
+  const dashIdx = id.indexOf("-");
+  return {
+    dayOfWeek: parseInt(id.substring(0, dashIdx), 10),
+    mealType: id.substring(dashIdx + 1),
+  };
 }
 
 export default function PlannerPage() {
   const router = useRouter();
   const [currentSunday, setCurrentMonday] = useState(() => {
     const now = new Date();
-    // If it's Thursday (4) or later, default to next week
     if (now.getDay() >= 4) {
       const nextWeek = new Date(now);
       nextWeek.setDate(nextWeek.getDate() + 7);
@@ -77,7 +84,6 @@ export default function PlannerPage() {
   const [plans, setPlans] = useState<MealPlan[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Dialog states
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{
     day: number;
@@ -92,6 +98,11 @@ export default function PlannerPage() {
   } | null>(null);
   const [notesText, setNotesText] = useState("");
 
+  // Native drag and drop state
+  const [dragOverSlotId, setDragOverSlotId] = useState<string | null>(null);
+  const dragSourceRef = useRef<string | null>(null);
+  const dragCounterRef = useRef(0);
+
   const weekStart = formatWeekStart(currentSunday);
 
   const fetchPlans = useCallback(async () => {
@@ -99,7 +110,6 @@ export default function PlannerPage() {
     try {
       const res = await fetch(`/api/planner?week=${weekStart}`);
       const data = await res.json();
-
       if (data.success) {
         setPlans(data.data.plans);
       } else {
@@ -127,7 +137,6 @@ export default function PlannerPage() {
 
   const handleRecipeSelect = async (recipeId: string | null) => {
     if (!selectedSlot) return;
-
     try {
       const res = await fetch("/api/planner", {
         method: "POST",
@@ -139,15 +148,11 @@ export default function PlannerPage() {
           recipeId,
         }),
       });
-
       const data = await res.json();
-
       if (data.success) {
-        // Update local state
         setPlans((prev) => {
           const filtered = prev.filter(
-            (p) =>
-              !(p.dayOfWeek === selectedSlot.day && p.mealType === selectedSlot.mealType)
+            (p) => !(p.dayOfWeek === selectedSlot.day && p.mealType === selectedSlot.mealType)
           );
           return [...filtered, data.data];
         });
@@ -158,14 +163,12 @@ export default function PlannerPage() {
     } catch {
       toast.error("Failed to update meal plan");
     }
-
     setPickerOpen(false);
     setSelectedSlot(null);
   };
 
   const handleCustomMeal = async (mealText: string) => {
     if (!selectedSlot) return;
-
     try {
       const res = await fetch("/api/planner", {
         method: "POST",
@@ -177,14 +180,11 @@ export default function PlannerPage() {
           notes: mealText,
         }),
       });
-
       const data = await res.json();
-
       if (data.success) {
         setPlans((prev) => {
           const filtered = prev.filter(
-            (p) =>
-              !(p.dayOfWeek === selectedSlot.day && p.mealType === selectedSlot.mealType)
+            (p) => !(p.dayOfWeek === selectedSlot.day && p.mealType === selectedSlot.mealType)
           );
           return [...filtered, data.data];
         });
@@ -195,7 +195,6 @@ export default function PlannerPage() {
     } catch {
       toast.error("Failed to add meal");
     }
-
     setPickerOpen(false);
     setSelectedSlot(null);
   };
@@ -203,12 +202,8 @@ export default function PlannerPage() {
   const handleClearSlot = async (day: number, mealType: string) => {
     const plan = getPlan(day, mealType);
     if (!plan) return;
-
     try {
-      const res = await fetch(`/api/planner?id=${plan.id}`, {
-        method: "DELETE",
-      });
-
+      const res = await fetch(`/api/planner?id=${plan.id}`, { method: "DELETE" });
       if (res.ok) {
         setPlans((prev) => prev.filter((p) => p.id !== plan.id));
         toast.success("Meal cleared");
@@ -227,7 +222,6 @@ export default function PlannerPage() {
 
   const handleNotesSave = async () => {
     if (!notesSlot) return;
-
     try {
       const res = await fetch("/api/planner", {
         method: "POST",
@@ -239,14 +233,11 @@ export default function PlannerPage() {
           notes: notesText || null,
         }),
       });
-
       const data = await res.json();
-
       if (data.success) {
         setPlans((prev) => {
           const filtered = prev.filter(
-            (p) =>
-              !(p.dayOfWeek === notesSlot.day && p.mealType === notesSlot.mealType)
+            (p) => !(p.dayOfWeek === notesSlot.day && p.mealType === notesSlot.mealType)
           );
           return [...filtered, data.data];
         });
@@ -255,7 +246,6 @@ export default function PlannerPage() {
     } catch {
       toast.error("Failed to save notes");
     }
-
     setNotesDialogOpen(false);
     setNotesSlot(null);
   };
@@ -265,15 +255,9 @@ export default function PlannerPage() {
       const res = await fetch("/api/planner/quick-fill", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          weekStart,
-          mealTypes: ["dinner"],
-          prioritizeLoved: true,
-        }),
+        body: JSON.stringify({ weekStart, mealTypes: ["dinner"], prioritizeLoved: true }),
       });
-
       const data = await res.json();
-
       if (data.success) {
         setPlans(data.data.plans);
         toast.success(`Filled ${data.data.filled} dinner slots`);
@@ -289,20 +273,13 @@ export default function PlannerPage() {
     const previousSunday = new Date(currentSunday);
     previousSunday.setDate(previousSunday.getDate() - 7);
     const previousWeekStart = formatWeekStart(previousSunday);
-
     try {
       const res = await fetch("/api/planner/copy-week", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sourceWeek: previousWeekStart,
-          targetWeek: weekStart,
-          overwrite: false,
-        }),
+        body: JSON.stringify({ sourceWeek: previousWeekStart, targetWeek: weekStart, overwrite: false }),
       });
-
       const data = await res.json();
-
       if (data.success) {
         setPlans(data.data.plans);
         toast.success(`Copied ${data.data.copied} meals from last week`);
@@ -329,6 +306,151 @@ export default function PlannerPage() {
   const goToCurrentWeek = () => {
     setCurrentMonday(getSunday(new Date()));
   };
+
+  // --- Native HTML5 Drag and Drop ---
+  const handleDragStart = (slotId: string) => (e: React.DragEvent) => {
+    dragSourceRef.current = slotId;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", slotId);
+    // Make the dragged element semi-transparent
+    if (e.currentTarget instanceof HTMLElement) {
+      requestAnimationFrame(() => {
+        (e.currentTarget as HTMLElement).style.opacity = "0.4";
+      });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDragEnter = (slotId: string) => (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current++;
+    if (slotId !== dragSourceRef.current) {
+      setDragOverSlotId(slotId);
+    }
+  };
+
+  const handleDragLeave = (slotId: string) => (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      if (dragOverSlotId === slotId) {
+        setDragOverSlotId(null);
+      }
+    }
+  };
+
+  const handleDrop = (targetSlotId: string) => async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverSlotId(null);
+    dragCounterRef.current = 0;
+
+    const sourceSlotId = e.dataTransfer.getData("text/plain");
+    if (!sourceSlotId || sourceSlotId === targetSlotId) return;
+
+    const source = parseSlotId(sourceSlotId);
+    const target = parseSlotId(targetSlotId);
+
+    const sourcePlan = getPlan(source.dayOfWeek, source.mealType);
+    const targetPlan = getPlan(target.dayOfWeek, target.mealType);
+
+    if (!sourcePlan) return;
+
+    // Optimistic UI update
+    setPlans((prev) => {
+      const updated = prev.map((p) => {
+        if (p.dayOfWeek === source.dayOfWeek && p.mealType === source.mealType) {
+          if (targetPlan) {
+            return { ...p, recipeId: targetPlan.recipeId, recipe: targetPlan.recipe, notes: targetPlan.notes };
+          }
+          return null;
+        }
+        if (p.dayOfWeek === target.dayOfWeek && p.mealType === target.mealType) {
+          return { ...p, recipeId: sourcePlan.recipeId, recipe: sourcePlan.recipe, notes: sourcePlan.notes };
+        }
+        return p;
+      }).filter(Boolean) as MealPlan[];
+
+      if (!targetPlan) {
+        updated.push({
+          ...sourcePlan,
+          id: `temp-${Date.now()}`,
+          dayOfWeek: target.dayOfWeek,
+          mealType: target.mealType,
+        });
+      }
+
+      return updated;
+    });
+
+    // Persist to server
+    try {
+      const moveToTarget = fetch("/api/planner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weekStart,
+          dayOfWeek: target.dayOfWeek,
+          mealType: target.mealType,
+          recipeId: sourcePlan.recipeId,
+          notes: sourcePlan.notes,
+        }),
+      });
+
+      let clearOrSwapSource: Promise<Response>;
+      if (targetPlan) {
+        clearOrSwapSource = fetch("/api/planner", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            weekStart,
+            dayOfWeek: source.dayOfWeek,
+            mealType: source.mealType,
+            recipeId: targetPlan.recipeId,
+            notes: targetPlan.notes,
+          }),
+        });
+      } else {
+        clearOrSwapSource = fetch(`/api/planner?id=${sourcePlan.id}`, { method: "DELETE" });
+      }
+
+      const [targetRes, sourceRes] = await Promise.all([moveToTarget, clearOrSwapSource]);
+
+      if (targetRes.ok && sourceRes.ok) {
+        toast.success(targetPlan ? "Meals swapped" : "Meal moved");
+      } else {
+        toast.error("Failed to move meal");
+      }
+      fetchPlans();
+    } catch {
+      toast.error("Failed to move meal");
+      fetchPlans();
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    // Restore opacity
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = "";
+    }
+    setDragOverSlotId(null);
+    dragSourceRef.current = null;
+    dragCounterRef.current = 0;
+  };
+
+  // Create drag handlers for a given slot
+  const dragProps = (slotId: string) => ({
+    slotId,
+    isDragOver: dragOverSlotId === slotId,
+    onDragStart: handleDragStart(slotId),
+    onDragOver: handleDragOver,
+    onDragEnter: handleDragEnter(slotId),
+    onDragLeave: handleDragLeave(slotId),
+    onDrop: handleDrop(slotId),
+  });
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -368,10 +490,9 @@ export default function PlannerPage() {
         </Button>
       </div>
 
-      {/* Calendar Grid - Desktop (md+) */}
+      {/* Calendar Grid */}
       {loading ? (
         <>
-          {/* Desktop skeleton */}
           <div className="hidden md:grid grid-cols-8 gap-2">
             <div className="h-10" />
             {DAYS.map((day) => (
@@ -386,7 +507,6 @@ export default function PlannerPage() {
               </Fragment>
             ))}
           </div>
-          {/* Mobile skeleton */}
           <div className="md:hidden space-y-3">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
@@ -402,53 +522,48 @@ export default function PlannerPage() {
             {DAYS.map((day, index) => {
               const date = new Date(currentSunday);
               date.setDate(date.getDate() + index);
-              const isToday =
-                date.toDateString() === new Date().toDateString();
-
+              const isToday = date.toDateString() === new Date().toDateString();
               return (
                 <div
                   key={day}
-                  className={`text-center py-2 font-medium ${
-                    isToday ? "bg-primary/10 rounded-t-lg" : ""
-                  }`}
+                  className={`text-center py-2 font-medium ${isToday ? "bg-primary/10 rounded-t-lg" : ""}`}
                 >
                   <div>{day}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {date.getDate()}
-                  </div>
+                  <div className="text-sm text-muted-foreground">{date.getDate()}</div>
                 </div>
               );
             })}
 
             {/* Meal Rows */}
             {MEAL_TYPES.map((mealType) => (
-              <>
-                <div
-                  key={`label-${mealType}`}
-                  className="font-medium text-muted-foreground capitalize flex items-center"
-                >
+              <Fragment key={mealType}>
+                <div className="font-medium text-muted-foreground capitalize flex items-center">
                   {mealType}
                 </div>
                 {DAYS.map((_, dayIndex) => {
                   const plan = getPlan(dayIndex, mealType);
                   const date = new Date(currentSunday);
                   date.setDate(date.getDate() + dayIndex);
-                  const isToday =
-                    date.toDateString() === new Date().toDateString();
-
+                  const isToday = date.toDateString() === new Date().toDateString();
+                  const sid = makeSlotId(dayIndex, mealType);
                   return (
-                    <MealSlot
-                      key={`${mealType}-${dayIndex}`}
-                      plan={plan}
-                      isToday={isToday}
-                      onClick={() => handleSlotClick(dayIndex, mealType)}
-                      onClear={() => handleClearSlot(dayIndex, mealType)}
-                      onNotesClick={() => handleNotesClick(dayIndex, mealType)}
-                      onViewRecipe={(id) => router.push(`/recipes/${id}`)}
-                    />
+                    <div
+                      key={sid}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <MealSlot
+                        plan={plan}
+                        isToday={isToday}
+                        {...dragProps(sid)}
+                        onClick={() => handleSlotClick(dayIndex, mealType)}
+                        onClear={() => handleClearSlot(dayIndex, mealType)}
+                        onNotesClick={() => handleNotesClick(dayIndex, mealType)}
+                        onViewRecipe={(id) => router.push(`/recipes/${id}`)}
+                      />
+                    </div>
                   );
                 })}
-              </>
+              </Fragment>
             ))}
           </div>
 
@@ -458,7 +573,6 @@ export default function PlannerPage() {
               const date = new Date(currentSunday);
               date.setDate(date.getDate() + dayIndex);
               const isToday = date.toDateString() === new Date().toDateString();
-
               return (
                 <Card
                   key={day}
@@ -467,16 +581,15 @@ export default function PlannerPage() {
                   <CardHeader className={`py-2 px-4 ${isToday ? "bg-primary/10" : "bg-muted/30"}`}>
                     <CardTitle className="text-base flex items-center justify-between">
                       <span>{day} {date.getMonth() + 1}/{date.getDate()}</span>
-                      {isToday && (
-                        <span className="text-xs font-normal text-primary">Today</span>
-                      )}
+                      {isToday && <span className="text-xs font-normal text-primary">Today</span>}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-2 space-y-1.5">
                     {MEAL_TYPES.map((mealType) => {
                       const plan = getPlan(dayIndex, mealType);
+                      const sid = makeSlotId(dayIndex, mealType);
                       return (
-                        <div key={mealType} className="flex items-start gap-2">
+                        <div key={mealType} className="flex items-start gap-2" onDragEnd={handleDragEnd}>
                           <span className="text-xs font-medium text-muted-foreground capitalize w-14 pt-2.5 shrink-0">
                             {mealType}
                           </span>
@@ -485,6 +598,7 @@ export default function PlannerPage() {
                               plan={plan}
                               isToday={false}
                               compact
+                              {...dragProps(sid)}
                               onClick={() => handleSlotClick(dayIndex, mealType)}
                               onClear={() => handleClearSlot(dayIndex, mealType)}
                               onNotesClick={() => handleNotesClick(dayIndex, mealType)}

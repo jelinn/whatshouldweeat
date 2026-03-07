@@ -42,7 +42,16 @@ export function RecipeCard({ recipe, onToggleLove }: RecipeCardProps) {
 
   return (
     <Link href={`/recipes/${recipe.id}`}>
-      <Card className="h-full transition-all hover:shadow-md hover:border-primary/20 cursor-pointer">
+      <Card className="h-full transition-all hover:shadow-md hover:border-primary/20 cursor-pointer overflow-hidden">
+        {recipe.imageUrl && (
+          <div className="h-36 overflow-hidden">
+            <img
+              src={recipe.imageUrl}
+              alt={recipe.title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="text-lg line-clamp-2">{recipe.title}</CardTitle>

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { CUISINES, MEAL_TYPES, DIFFICULTIES } from "@/lib/db/schema";
+import { ImageUpload } from "@/components/recipes/image-upload";
 import type { RecipeWithDetails } from "@/types";
 
 interface EditRecipePageProps {
@@ -36,6 +37,7 @@ export default function EditRecipePage({ params }: EditRecipePageProps) {
   const [mealType, setMealType] = useState("");
   const [difficulty, setDifficulty] = useState("");
   const [tagsInput, setTagsInput] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [notes, setNotes] = useState("");
   const [prepTime, setPrepTime] = useState("");
   const [cookTime, setCookTime] = useState("");
@@ -63,6 +65,7 @@ export default function EditRecipePage({ params }: EditRecipePageProps) {
         setCuisine(recipe.cuisine || "");
         setMealType(recipe.mealType || "");
         setDifficulty(recipe.difficulty || "");
+        setImageUrl(recipe.imageUrl || "");
         setTagsInput(recipe.tags?.join(", ") || "");
         setNotes(recipe.notes || "");
         setPrepTime(recipe.prepTimeMinutes?.toString() || "");
@@ -247,6 +250,14 @@ export default function EditRecipePage({ params }: EditRecipePageProps) {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
+              />
+            </div>
+            <div>
+              <Label>Recipe Image</Label>
+              <ImageUpload
+                recipeId={id}
+                currentImageUrl={imageUrl || undefined}
+                onImageChange={setImageUrl}
               />
             </div>
           </CardContent>

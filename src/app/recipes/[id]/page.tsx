@@ -181,6 +181,17 @@ export default function RecipePage({ params }: RecipePageProps) {
 
   return (
     <div className="max-w-3xl mx-auto">
+      {/* Hero Image */}
+      {recipe.imageUrl && (
+        <div className="rounded-lg overflow-hidden mb-6">
+          <img
+            src={recipe.imageUrl}
+            alt={recipe.title}
+            className="w-full h-64 object-cover"
+          />
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-start justify-between gap-4 mb-2">

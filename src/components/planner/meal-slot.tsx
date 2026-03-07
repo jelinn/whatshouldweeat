@@ -24,10 +24,22 @@ interface MealPlan {
   recipe: Recipe | null;
 }
 
+export interface SlotIdentifier {
+  dayOfWeek: number;
+  mealType: string;
+}
+
 interface MealSlotProps {
   plan?: MealPlan;
   isToday?: boolean;
   compact?: boolean;
+  slotId: string;
+  isDragOver?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragEnter?: (e: React.DragEvent) => void;
+  onDragLeave?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
   onClick: () => void;
   onClear: () => void;
   onNotesClick: () => void;
@@ -38,6 +50,13 @@ export function MealSlot({
   plan,
   isToday,
   compact,
+  slotId,
+  isDragOver,
+  onDragStart,
+  onDragOver,
+  onDragEnter,
+  onDragLeave,
+  onDrop,
   onClick,
   onClear,
   onNotesClick,
@@ -56,12 +75,18 @@ export function MealSlot({
   };
 
   if (compact) {
-    // Mobile compact layout - horizontal row
     return (
       <Card
+        draggable={!isEmpty}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        data-slot-id={slotId}
         className={`p-2 cursor-pointer transition-all hover:shadow-md ${
           isEmpty ? "border-dashed" : ""
-        }`}
+        } ${isDragOver ? "ring-2 ring-primary bg-primary/10" : ""}`}
         onClick={handleCardClick}
       >
         {hasRecipe ? (
@@ -119,9 +144,18 @@ export function MealSlot({
   // Default desktop layout
   return (
     <Card
+      draggable={!isEmpty}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      data-slot-id={slotId}
       className={`min-h-24 p-2 cursor-pointer transition-all hover:shadow-md ${
         isToday ? "border-primary/50 bg-primary/5" : ""
-      } ${isEmpty ? "border-dashed" : ""}`}
+      } ${isEmpty ? "border-dashed" : ""} ${
+        isDragOver ? "ring-2 ring-primary bg-primary/10" : ""
+      }`}
       onClick={handleCardClick}
     >
       {hasRecipe ? (

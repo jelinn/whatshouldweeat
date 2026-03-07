@@ -27,6 +27,7 @@ const navItems = [
   { href: "/discover", label: "Discover" },
   { href: "/planner", label: "Meal Planner" },
   { href: "/grocery", label: "Grocery List" },
+  { href: "/stats", label: "Stats" },
 ];
 
 export function Navigation() {

@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { CUISINES, MEAL_TYPES, DIFFICULTIES, INGREDIENT_CATEGORIES } from "@/lib/db/schema";
 import { toast } from "sonner";
+import { ImageUpload } from "@/components/recipes/image-upload";
 import type { CreateRecipeInput } from "@/types";
 
 interface IngredientInput {
@@ -42,6 +43,7 @@ export default function NewRecipePage() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceName, setSourceName] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
 
   // Times and servings
   const [prepTime, setPrepTime] = useState("");
@@ -169,6 +171,15 @@ export default function NewRecipePage() {
       const data = await res.json();
 
       if (data.success) {
+        // Upload pending image if one was selected
+        if (pendingImageFile) {
+          const formData = new FormData();
+          formData.append("image", pendingImageFile);
+          await fetch(`/api/recipes/${data.data.id}/image`, {
+            method: "POST",
+            body: formData,
+          });
+        }
         toast.success("Recipe created successfully!");
         router.push(`/recipes/${data.data.id}`);
       } else {
@@ -239,13 +250,11 @@ export default function NewRecipePage() {
               </div>
             </div>
             <div>
-              <Label htmlFor="imageUrl">Image URL</Label>
-              <Input
-                id="imageUrl"
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://..."
+              <Label>Recipe Image</Label>
+              <ImageUpload
+                currentImageUrl={imageUrl || undefined}
+                onImageChange={setImageUrl}
+                onFileSelect={setPendingImageFile}
               />
             </div>
           </CardContent>
