@@ -64,7 +64,16 @@ function formatDateRange(sunday: Date): string {
 
 export default function PlannerPage() {
   const router = useRouter();
-  const [currentSunday, setCurrentMonday] = useState(() => getSunday(new Date()));
+  const [currentSunday, setCurrentMonday] = useState(() => {
+    const now = new Date();
+    // If it's Thursday (4) or later, default to next week
+    if (now.getDay() >= 4) {
+      const nextWeek = new Date(now);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      return getSunday(nextWeek);
+    }
+    return getSunday(now);
+  });
   const [plans, setPlans] = useState<MealPlan[]>([]);
   const [loading, setLoading] = useState(true);
 

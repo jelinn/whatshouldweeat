@@ -32,8 +32,9 @@ export async function POST(request: NextRequest) {
         .map((p) => `${p.dayOfWeek}-${p.mealType}`)
     );
 
-    // Get recipes to fill with (prioritize loved ones)
+    // Get recipes to fill with (only dinner recipes, prioritize loved ones)
     const allRecipes = await db.query.recipes.findMany({
+      where: eq(recipes.mealType, "dinner"),
       orderBy: prioritizeLoved
         ? [desc(recipes.isLoved), desc(recipes.rating), sql`RANDOM()`]
         : [sql`RANDOM()`],
