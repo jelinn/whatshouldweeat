@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-guard";
 import { db, recipes, ingredients, instructions } from "@/lib/db";
-import { eq, desc, like, and, or, gte } from "drizzle-orm";
+import { eq, desc, like, and, or, gte, sql } from "drizzle-orm";
 import type {
   CreateRecipeInput,
   RecipeWithDetails,
@@ -130,6 +130,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Title is required" },
         { status: 400 }
+      );
+    }
+
+    // Check for duplicate recipe (case-insensitive title match)
+    const existing = await db.query.recipes.findFirst({
+      where: sql`lower(${recipes.title}) = lower(${body.title.trim()})`,
+    });
+
+    if (existing) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `A recipe named "${existing.title}" already exists`,
+          existingId: existing.id,
+        },
+        { status: 409 }
       );
     }
 

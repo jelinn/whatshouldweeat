@@ -74,7 +74,7 @@ export default function PlannerPage() {
   const router = useRouter();
   const [currentSunday, setCurrentMonday] = useState(() => {
     const now = new Date();
-    if (now.getDay() >= 4) {
+    if (now.getDay() >= 3) {
       const nextWeek = new Date(now);
       nextWeek.setDate(nextWeek.getDate() + 7);
       return getSunday(nextWeek);

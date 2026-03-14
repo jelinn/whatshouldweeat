@@ -158,11 +158,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fetch ALL items for this week (including manually added ones that were preserved)
+    const allItems = await db.query.groceryItems.findMany({
+      where: eq(groceryItems.weekStart, weekStart),
+    });
+
     return NextResponse.json({
       success: true,
       data: {
         weekStart,
-        items: newItems,
+        items: allItems,
         generated: aggregated.length,
       },
     });
@@ -240,14 +245,14 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// PATCH /api/grocery - Update a grocery item (check/uncheck)
+// PATCH /api/grocery - Update a grocery item
 export async function PATCH(request: NextRequest) {
   const unauthorized = await requireAuth();
   if (unauthorized) return unauthorized;
 
   try {
     const body = await request.json();
-    const { id, isChecked } = body;
+    const { id, isChecked, ingredientName, amount, unit, category } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -256,9 +261,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const updates: Record<string, unknown> = {};
+    if (isChecked !== undefined) updates.isChecked = isChecked;
+    if (ingredientName !== undefined) updates.ingredientName = ingredientName.trim();
+    if (amount !== undefined) updates.amount = amount;
+    if (unit !== undefined) updates.unit = unit?.trim() || null;
+    if (category !== undefined) updates.category = category;
+
     const [updated] = await db
       .update(groceryItems)
-      .set({ isChecked })
+      .set(updates)
       .where(eq(groceryItems.id, id))
       .returning();
 

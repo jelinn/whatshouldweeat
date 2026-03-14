@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -80,7 +80,16 @@ function formatDateRange(sunday: Date): string {
 }
 
 export default function GroceryPage() {
-  const [currentSunday, setCurrentSunday] = useState(() => getSunday(new Date()));
+  const [currentSunday, setCurrentSunday] = useState(() => {
+    const now = new Date();
+    // From Wednesday on, show next week's grocery list
+    if (now.getDay() >= 3) {
+      const nextWeek = new Date(now);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      return getSunday(nextWeek);
+    }
+    return getSunday(now);
+  });
   const [items, setItems] = useState<GroceryItem[]>([]);
   const [staples, setStaples] = useState<Staple[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +106,22 @@ export default function GroceryPage() {
   const [addItemUnit, setAddItemUnit] = useState("");
   const [addItemCategory, setAddItemCategory] = useState("");
   const [addingItem, setAddingItem] = useState(false);
+
+  // Edit item dialog
+  const [editItem, setEditItem] = useState<GroceryItem | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editUnit, setEditUnit] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Autocomplete
+  const [suggestions, setSuggestions] = useState<{ name: string; category: string | null }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Meal plans for print summary
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
@@ -307,6 +332,124 @@ export default function GroceryPage() {
     }
   };
 
+  const openEditDialog = (item: GroceryItem) => {
+    setEditItem(item);
+    setEditName(item.ingredientName);
+    setEditAmount(item.amount?.toString() || "");
+    setEditUnit(item.unit || "");
+    setEditCategory(item.category || "other");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editItem || !editName.trim()) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch("/api/grocery", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editItem.id,
+          ingredientName: editName.trim(),
+          amount: editAmount ? parseFloat(editAmount) : null,
+          unit: editUnit.trim() || null,
+          category: editCategory || "other",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setItems((prev) =>
+          prev.map((i) => (i.id === editItem.id ? data.data : i))
+        );
+        setEditItem(null);
+        toast.success("Item updated");
+      } else {
+        toast.error(data.error || "Failed to update item");
+      }
+    } catch {
+      toast.error("Failed to update item");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const searchIngredients = useCallback(async (query: string) => {
+    if (query.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/ingredients/search?q=${encodeURIComponent(query.trim())}`);
+      const data = await res.json();
+      if (data.success && data.data.length > 0) {
+        setSuggestions(data.data);
+        setShowSuggestions(true);
+        setActiveSuggestion(-1);
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    } catch {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, []);
+
+  const handleAddItemNameChange = (value: string) => {
+    setAddItemName(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => searchIngredients(value), 200);
+  };
+
+  const selectSuggestion = (suggestion: { name: string; category: string | null }) => {
+    setAddItemName(suggestion.name);
+    if (suggestion.category && !addItemCategory) {
+      setAddItemCategory(suggestion.category);
+    }
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
+
+  const handleAddItemKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions || suggestions.length === 0) {
+      if (e.key === "Enter") handleAddItem();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveSuggestion((prev) => Math.min(prev + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveSuggestion((prev) => Math.max(prev - 1, -1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeSuggestion >= 0) {
+        selectSuggestion(suggestions[activeSuggestion]);
+      } else {
+        setShowSuggestions(false);
+        handleAddItem();
+      }
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  };
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(e.target as Node) &&
+        addInputRef.current &&
+        !addInputRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const goToPreviousWeek = () => {
     const prev = new Date(currentSunday);
     prev.setDate(prev.getDate() - 7);
@@ -320,7 +463,14 @@ export default function GroceryPage() {
   };
 
   const goToCurrentWeek = () => {
-    setCurrentSunday(getSunday(new Date()));
+    const now = new Date();
+    if (now.getDay() >= 3) {
+      const nextWeek = new Date(now);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      setCurrentSunday(getSunday(nextWeek));
+    } else {
+      setCurrentSunday(getSunday(now));
+    }
   };
 
   // Group items by category
@@ -371,7 +521,13 @@ export default function GroceryPage() {
         </Button>
         <div className="flex items-center gap-2 md:gap-4">
           <h2 className="text-base md:text-xl font-semibold text-center">{formatDateRange(currentSunday)}</h2>
-          {formatWeekStart(getSunday(new Date())) !== weekStart && (
+          {(() => {
+            const now = new Date();
+            const defaultSunday = now.getDay() >= 3
+              ? getSunday(new Date(now.getTime() + 7 * 86400000))
+              : getSunday(now);
+            return formatWeekStart(defaultSunday) !== weekStart;
+          })() && (
             <Button variant="ghost" size="sm" onClick={goToCurrentWeek}>
               Today
             </Button>
@@ -422,16 +578,42 @@ export default function GroceryPage() {
       <Card className="no-print">
         <CardContent className="py-3 px-3 sm:px-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex-1">
+            <div className="flex-1 relative">
               <Label htmlFor="add-item-name" className="text-xs text-muted-foreground">Item</Label>
               <Input
+                ref={addInputRef}
                 id="add-item-name"
                 placeholder="e.g., Soy sauce"
                 value={addItemName}
-                onChange={(e) => setAddItemName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleAddItem(); }}
+                onChange={(e) => handleAddItemNameChange(e.target.value)}
+                onKeyDown={handleAddItemKeyDown}
+                onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
                 disabled={addingItem}
+                autoComplete="off"
               />
+              {showSuggestions && suggestions.length > 0 && (
+                <div
+                  ref={suggestionsRef}
+                  className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-md max-h-48 overflow-y-auto"
+                >
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={`${s.name}-${i}`}
+                      type="button"
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-accent flex justify-between items-center ${
+                        i === activeSuggestion ? "bg-accent" : ""
+                      }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => selectSuggestion(s)}
+                    >
+                      <span>{s.name}</span>
+                      {s.category && (
+                        <span className="text-xs text-muted-foreground">{s.category}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <div className="w-20">
@@ -666,6 +848,15 @@ export default function GroceryPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-blue-600 hover:bg-blue-50"
+                                onClick={() => openEditDialog(item)}
+                                title="Edit item"
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50"
                                 onClick={() => handleMarkAlreadyHave(item)}
                                 title="Mark as already have"
@@ -692,6 +883,67 @@ export default function GroceryPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Item Dialog */}
+      <Dialog open={!!editItem} onOpenChange={(open) => { if (!open) setEditItem(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Item</DialogTitle>
+            <DialogDescription>Update this grocery item.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Name</Label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+            <div className="flex gap-2">
+              <div className="w-24">
+                <Label className="text-xs text-muted-foreground">Amount</Label>
+                <Input
+                  type="number"
+                  step="0.25"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                />
+              </div>
+              <div className="w-24">
+                <Label className="text-xs text-muted-foreground">Unit</Label>
+                <Input
+                  value={editUnit}
+                  onChange={(e) => setEditUnit(e.target.value)}
+                />
+              </div>
+              <div className="flex-1">
+                <Label className="text-xs text-muted-foreground">Category</Label>
+                <Select value={editCategory} onValueChange={setEditCategory}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INGREDIENT_CATEGORIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c.charAt(0).toUpperCase() + c.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditItem(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={savingEdit || !editName.trim()}>
+              {savingEdit ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Staples Management Dialog */}
       <Dialog open={staplesDialogOpen} onOpenChange={setStaplesDialogOpen}>
