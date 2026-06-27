@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AddToPlanDialog } from "@/components/recipes/add-to-plan-dialog";
 import type { RecipeWithDetails } from "@/types";
 
 interface RecipeCardProps {
@@ -55,16 +56,19 @@ export function RecipeCard({ recipe, onToggleLove }: RecipeCardProps) {
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="text-lg line-clamp-2">{recipe.title}</CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0 h-8 w-8 p-0"
-              onClick={handleLoveClick}
-            >
-              <span className={recipe.isLoved ? "text-red-500" : "text-muted-foreground"}>
-                {recipe.isLoved ? "♥" : "♡"}
-              </span>
-            </Button>
+            <div className="flex shrink-0 items-center">
+              <AddToPlanDialog recipeId={recipe.id} recipeTitle={recipe.title} />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 h-8 w-8 p-0"
+                onClick={handleLoveClick}
+              >
+                <span className={recipe.isLoved ? "text-red-500" : "text-muted-foreground"}>
+                  {recipe.isLoved ? "♥" : "♡"}
+                </span>
+              </Button>
+            </div>
           </div>
           {recipe.description && (
             <CardDescription className="line-clamp-2">

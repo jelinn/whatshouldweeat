@@ -177,7 +177,7 @@
 
   /* Category headers */
   .print-grocery-list .print-category-header {
-    font-size: 8pt;
+    font-size: var(--print-header-size, 13pt);
     font-weight: bold;
     border-bottom: 0.5pt solid #333;
     padding-bottom: 0;
@@ -189,19 +189,19 @@
   .print-grocery-list li {
     padding: 0 !important;
     margin: 0 !important;
-    font-size: 7.5pt;
+    font-size: var(--print-item-size, 12pt);
     line-height: 1.35;
     display: flex !important;
     align-items: baseline !important;
-    gap: 3px !important;
+    gap: 4px !important;
   }
 
   /* Print checkbox squares */
   .print-grocery-list .print-checkbox {
     display: inline-block !important;
-    width: 7px;
-    height: 7px;
-    min-width: 7px;
+    width: 0.8em;
+    height: 0.8em;
+    min-width: 0.8em;
     border: 0.5pt solid #333;
     border-radius: 0;
     flex-shrink: 0;
@@ -222,13 +222,20 @@
     margin-bottom: 2px !important;
   }
 
-  /* Three-column layout for print */
-  .print-grocery-list .print-columns {
-    column-count: 3;
-    column-gap: 12px;
+  /* Balanced multi-column layout for print (flex columns, JS-distributed) */
+  .print-grocery-list .print-flex-columns {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .print-grocery-list .print-flex-columns .print-col {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .print-grocery-list .print-category {
     break-inside: avoid;
+    margin-bottom: 6px;
   }
 }

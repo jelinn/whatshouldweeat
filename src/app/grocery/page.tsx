@@ -484,6 +484,44 @@ export default function GroceryPage() {
     return acc;
   }, {} as Record<string, GroceryItem[]>);
 
+  // Distribute categories into balanced columns for printing.
+  // Greedy bin-packing: each category (kept whole) goes to the currently
+  // lightest column. Deterministic, so print output doesn't depend on the
+  // browser's flaky multi-column page fragmentation.
+  const PRINT_COLUMN_COUNT = 3;
+  const printColumns: Array<Array<[string, GroceryItem[]]>> = Array.from(
+    { length: PRINT_COLUMN_COUNT },
+    () => []
+  );
+  const printColumnWeights = new Array(PRINT_COLUMN_COUNT).fill(0);
+  for (const [category, categoryItems] of Object.entries(groupedItems)) {
+    let target = 0;
+    for (let i = 1; i < PRINT_COLUMN_COUNT; i++) {
+      if (printColumnWeights[i] < printColumnWeights[target]) target = i;
+    }
+    printColumns[target].push([category, categoryItems]);
+    // +1.5 approximates the header's vertical footprint relative to a row.
+    printColumnWeights[target] += categoryItems.length + 1.5;
+  }
+
+  // Scale the print font to the list size: short lists get a large, readable
+  // font; long lists shrink only as far as needed to still fit one page. The
+  // tallest column is the binding constraint (~660pt usable height after the
+  // header band). Clamp to a readable 8–14pt range.
+  const tallestColumnWeight = printColumnWeights.length
+    ? Math.max(...printColumnWeights)
+    : 0;
+  // Grow the font to fill most of the page. The numerator/divisor are tuned so
+  // a typical weekly list lands at the 30pt cap (filling the page), while long
+  // lists scale down to stay on one page. Crossover to shrinking is ~85 items.
+  const printItemPt =
+    tallestColumnWeight > 0
+      ? Math.round(
+          Math.max(12, Math.min(30, 1300 / (tallestColumnWeight * 1.4))) * 10
+        ) / 10
+      : 18;
+  const printHeaderPt = Math.round((printItemPt + 1) * 10) / 10;
+
   const checkedCount = items.filter((i) => i.isChecked).length;
   const totalCount = items.length;
   const progress = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
@@ -708,22 +746,28 @@ export default function GroceryPage() {
           <style dangerouslySetInnerHTML={{ __html: `
             @media print {
               @page { margin: 0.25in; size: letter; }
-              .grocery-print-columns {
-                column-count: 3 !important;
-                column-gap: 12px !important;
+              .print-flex-columns {
+                display: flex !important;
+                gap: 14px !important;
+                align-items: flex-start !important;
+              }
+              .print-flex-columns .print-col {
+                flex: 1 1 0 !important;
+                min-width: 0 !important;
               }
               .print-grocery-list .print-category {
                 break-inside: avoid;
+                margin-bottom: 6px !important;
               }
               .print-grocery-list li {
-                font-size: 7.5pt !important;
+                font-size: var(--print-item-size, 12pt) !important;
                 line-height: 1.3 !important;
                 padding: 0 !important;
                 margin: 0 !important;
-                gap: 3px !important;
+                gap: 4px !important;
               }
               .print-grocery-list .print-category-header {
-                font-size: 8pt !important;
+                font-size: var(--print-header-size, 13pt) !important;
                 font-weight: bold;
                 border-bottom: 0.5pt solid #333;
                 margin-top: 4px;
@@ -741,9 +785,9 @@ export default function GroceryPage() {
                 margin-bottom: 2px !important;
               }
               .print-grocery-list .print-checkbox {
-                width: 7px !important;
-                height: 7px !important;
-                min-width: 7px !important;
+                width: 0.8em !important;
+                height: 0.8em !important;
+                min-width: 0.8em !important;
                 border: 0.5pt solid #333 !important;
               }
               .print-grocery-list [class*="card"],
@@ -792,9 +836,9 @@ export default function GroceryPage() {
             })()}
           </div>
 
-          <div className="space-y-4 print:space-y-0 grocery-print-columns">
+          <div className="space-y-4 print:hidden">
             {Object.entries(groupedItems).map(([category, categoryItems]) => (
-              <div key={category} className="print-category">
+              <div key={category}>
                 <Card>
                   <CardHeader className="py-3 px-3 sm:px-6 print:p-0">
                     <CardTitle className="text-base sm:text-lg flex items-center gap-2 print:hidden">
@@ -880,6 +924,47 @@ export default function GroceryPage() {
                 </Card>
               </div>
             ))}
+          </div>
+
+          {/* Print-only layout: balanced flexbox columns, compact rows */}
+          <div
+            className="hidden print:block"
+            style={
+              {
+                "--print-item-size": `${printItemPt}pt`,
+                "--print-header-size": `${printHeaderPt}pt`,
+              } as React.CSSProperties
+            }
+          >
+            <div className="print-flex-columns">
+              {printColumns.map((col, colIndex) => (
+                <div key={colIndex} className="print-col">
+                  {col.map(([category, categoryItems]) => (
+                    <div key={category} className="print-category">
+                      <div className="print-category-header">
+                        {CATEGORY_LABELS[category] || category}
+                      </div>
+                      <ul>
+                        {categoryItems.map((item) => (
+                          <li key={item.id}>
+                            <span className="print-checkbox" />
+                            <span>
+                              {item.amount && (
+                                <span className="font-medium">
+                                  {item.amount}
+                                  {item.unit && ` ${item.unit}`}{" "}
+                                </span>
+                              )}
+                              {item.ingredientName}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
