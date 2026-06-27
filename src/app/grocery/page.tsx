@@ -848,7 +848,7 @@ export default function GroceryPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 px-2 text-xs text-muted-foreground hover:text-blue-600 hover:bg-blue-50"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400"
                                 onClick={() => openEditDialog(item)}
                                 title="Edit item"
                               >
@@ -857,7 +857,7 @@ export default function GroceryPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 dark:hover:text-green-400"
                                 onClick={() => handleMarkAlreadyHave(item)}
                                 title="Mark as already have"
                               >

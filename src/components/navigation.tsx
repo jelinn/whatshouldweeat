@@ -20,6 +20,7 @@ import {
   SheetTitle,
   SheetClose,
 } from "@/components/ui/sheet";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -88,6 +89,7 @@ export function Navigation() {
 
         {/* Desktop add recipe dropdown + user menu */}
         <div className="ml-auto hidden md:flex items-center space-x-4">
+          <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm">
@@ -135,6 +137,9 @@ export function Navigation() {
                   {session.user.email}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/settings">Settings</Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="cursor-pointer"
                   onClick={() => signOut({ callbackUrl: "/login" })}
@@ -171,6 +176,10 @@ export function Navigation() {
             ))}
             <div className="my-2 border-t" />
             <SheetClose asChild>
+              <ThemeToggle variant="menu-item" />
+            </SheetClose>
+            <div className="my-2 border-t" />
+            <SheetClose asChild>
               <Link
                 href="/recipes/import"
                 className="rounded-md px-3 py-3 text-base font-medium text-foreground/70 hover:bg-accent/50 hover:text-foreground"
@@ -204,6 +213,14 @@ export function Navigation() {
                   )}
                   <span className="truncate">{session.user.name}</span>
                 </div>
+                <SheetClose asChild>
+                  <Link
+                    href="/settings"
+                    className="rounded-md px-3 py-3 text-base font-medium text-foreground/70 hover:bg-accent/50 hover:text-foreground"
+                  >
+                    Settings
+                  </Link>
+                </SheetClose>
                 <SheetClose asChild>
                   <button
                     onClick={() => signOut({ callbackUrl: "/login" })}

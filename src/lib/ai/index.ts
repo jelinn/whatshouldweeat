@@ -1,4 +1,6 @@
 import { ClaudeProvider } from "./claude";
+import { OpenAIProvider } from "./openai";
+import { OllamaProvider } from "./ollama";
 import type { LLMProvider, LLMConfig } from "./types";
 
 export type { LLMProvider, LLMConfig, RecommendationContext, Recommendation, RecipeGenerationPrompt } from "./types";
@@ -18,15 +20,22 @@ export function getLLMProvider(config?: Partial<LLMConfig>): LLMProvider {
     case "claude":
       providerInstance = new ClaudeProvider(
         config?.apiKey || process.env.ANTHROPIC_API_KEY,
-        config?.model
+        config?.model || process.env.LLM_MODEL
       );
       break;
     case "openai":
-      // TODO: Implement OpenAI provider
-      throw new Error("OpenAI provider not yet implemented");
+      providerInstance = new OpenAIProvider(
+        config?.apiKey || process.env.OPENAI_API_KEY,
+        config?.model || process.env.LLM_MODEL,
+        config?.baseUrl
+      );
+      break;
     case "ollama":
-      // TODO: Implement Ollama provider
-      throw new Error("Ollama provider not yet implemented");
+      providerInstance = new OllamaProvider(
+        config?.model || process.env.LLM_MODEL,
+        config?.baseUrl || process.env.OLLAMA_BASE_URL
+      );
+      break;
     default:
       throw new Error(`Unknown LLM provider: ${providerType}`);
   }

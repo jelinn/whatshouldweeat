@@ -108,9 +108,35 @@ interface AggregatedIngredient {
   sources: { recipeId: string; recipeTitle: string; amount?: number; unit?: string }[];
 }
 
+// Naive singularization for matching purposes. Goal: collapse common plural
+// forms so "onion"/"onions" and "tomato"/"tomatoes" merge. Operates on the
+// hash key only — display names are preserved separately.
+function singularizeWord(word: string): string {
+  if (word.length <= 3) return word;
+  if (word.endsWith("ss")) return word; // glass, boneless
+
+  if (word.endsWith("ies") && word.length > 4) {
+    return word.slice(0, -3) + "y"; // berries → berry, fries → fry
+  }
+  if (
+    word.endsWith("xes") ||
+    word.endsWith("ses") ||
+    word.endsWith("zes") ||
+    word.endsWith("ches") ||
+    word.endsWith("shes") ||
+    word.endsWith("oes")
+  ) {
+    return word.slice(0, -2); // tomatoes → tomato, peaches → peach
+  }
+  if (word.endsWith("s")) {
+    return word.slice(0, -1); // onions → onion
+  }
+  return word;
+}
+
 // Normalize ingredient name for comparison
 function normalizeIngredientName(name: string): string {
-  return name
+  const stripped = name
     .toLowerCase()
     .trim()
     // Remove parenthetical notes like "(about 2 cups)" or "(see Note)"
@@ -121,6 +147,11 @@ function normalizeIngredientName(name: string): string {
     .replace(/[-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+  return stripped
+    .split(" ")
+    .map(singularizeWord)
+    .join(" ");
 }
 
 // Convert amount to base unit

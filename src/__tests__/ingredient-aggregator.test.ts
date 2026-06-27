@@ -156,6 +156,34 @@ describe("Ingredient Aggregator", () => {
       expect(result).toHaveLength(0);
     });
 
+    it("should merge singular and plural forms", () => {
+      const ingredients = [
+        { name: "onion", amount: 1, unit: null, category: "produce" },
+        { name: "onions", amount: 2, unit: null, category: "produce" },
+        { name: "tomato", amount: 1, unit: null, category: "produce" },
+        { name: "tomatoes", amount: 3, unit: null, category: "produce" },
+        { name: "berry", amount: 1, unit: "cup", category: "produce" },
+        { name: "berries", amount: 1, unit: "cup", category: "produce" },
+      ];
+
+      const result = aggregateIngredients(ingredients);
+
+      expect(result.filter((i) => i.name.toLowerCase().includes("onion"))).toHaveLength(1);
+      expect(result.filter((i) => i.name.toLowerCase().includes("tomato"))).toHaveLength(1);
+      expect(result.filter((i) => i.name.toLowerCase().includes("berr"))).toHaveLength(1);
+    });
+
+    it("should not over-singularize words ending in 'ss'", () => {
+      const ingredients = [
+        { name: "boneless chicken breast", amount: 1, unit: "lb", category: "meat" },
+        { name: "boneless chicken breasts", amount: 1, unit: "lb", category: "meat" },
+      ];
+
+      const result = aggregateIngredients(ingredients);
+      const chicken = result.filter((i) => i.name.toLowerCase().includes("chicken"));
+      expect(chicken).toHaveLength(1);
+    });
+
     it("should handle large quantities with unit conversion", () => {
       const ingredients = [
         { name: "water", amount: 4, unit: "cups" },

@@ -6,8 +6,12 @@ const { auth } = NextAuth(authConfig);
 export default auth((req) => {
   const { pathname } = req.nextUrl;
 
-  // Allow auth routes and login page
-  if (pathname.startsWith("/api/auth") || pathname === "/login") {
+  // Allow auth routes, login page, and API-key-guarded briefing routes
+  if (
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/briefing") ||
+    pathname === "/login"
+  ) {
     return;
   }
 

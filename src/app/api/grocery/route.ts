@@ -8,6 +8,13 @@ import {
 } from "@/lib/utils/ingredient-aggregator";
 import type { ApiResponse } from "@/types";
 
+// Skip ingredients explicitly flagged as not needing to be on the shopping list.
+function isOptionalIngredient(notes: string | null | undefined): boolean {
+  if (!notes) return false;
+  const lower = notes.toLowerCase();
+  return lower.includes("optional") || lower.includes("to taste");
+}
+
 // GET /api/grocery - Get grocery list for a week
 export async function GET(request: NextRequest) {
   const unauthorized = await requireAuth();
@@ -83,6 +90,7 @@ export async function POST(request: NextRequest) {
     for (const plan of plans) {
       if (plan.recipe && plan.recipe.ingredients) {
         for (const ing of plan.recipe.ingredients) {
+          if (isOptionalIngredient(ing.notes)) continue;
           allIngredients.push({
             name: ing.name,
             amount: ing.amount,

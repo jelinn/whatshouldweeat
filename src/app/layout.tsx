@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Navigation } from "@/components/navigation";
 import { AuthSessionProvider } from "@/components/session-provider";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,11 +37,18 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background`}
       >
-        <AuthSessionProvider>
-          <Navigation />
-          <main className="container mx-auto px-4 py-6">{children}</main>
-          <Toaster />
-        </AuthSessionProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthSessionProvider>
+            <Navigation />
+            <main className="container mx-auto px-4 py-6">{children}</main>
+            <Toaster />
+          </AuthSessionProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
